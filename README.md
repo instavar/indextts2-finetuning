@@ -1,6 +1,6 @@
 # IndexTTS2 Supervised Fine-Tuning (SFT)
 
-**The first public supervised fine-tuning (full SFT) pipeline for [IndexTTS2](https://github.com/IndexTeam/IndexTTS).** The official repo provides inference only — no fine-tuning code. This repo provides the complete SFT pipeline: data preprocessing, GPT fine-tuning, checkpoint management, and inference.
+**A supervised fine-tuning (SFT) pipeline for [IndexTTS2](https://github.com/IndexTeam/IndexTTS).** The official repo provides inference only — no fine-tuning code. This repo provides the complete SFT pipeline: data preprocessing, GPT fine-tuning, checkpoint management, and inference.
 
 We used this pipeline to fine-tune IndexTTS2 (full SFT — all weights updated, no LoRA) on IMDA NSC FEMALE_01 (Singaporean English) for production voice cloning. The configuration, pitfalls, and recommendations below come from that experience.
 
