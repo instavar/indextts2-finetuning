@@ -1,6 +1,6 @@
 # IndexTTS2 Fine-Tuning
 
-**The first public fine-tuning pipeline for [IndexTTS2](https://github.com/IndexTeam/IndexTTS).** The official repo provides inference only — no training code. This repo provides the complete training pipeline: data preprocessing, GPT fine-tuning, checkpoint management, and inference.
+**The first public fine-tuning pipeline for [IndexTTS2](https://github.com/IndexTeam/IndexTTS).** The official repo provides inference only — no fine-tuning code. This repo provides the complete fine-tuning pipeline: data preprocessing, GPT fine-tuning, checkpoint management, and inference.
 
 We used this pipeline to fine-tune IndexTTS2 on IMDA NSC FEMALE_01 (Singaporean English) for production voice cloning. The configuration, pitfalls, and recommendations below come from that experience.
 
@@ -11,7 +11,7 @@ We used this pipeline to fine-tune IndexTTS2 on IMDA NSC FEMALE_01 (Singaporean 
 
 ## Why this repo exists
 
-IndexTTS2 is the most reproducible full-SFT TTS model we tested — it converges predictably and retains accent characteristics well. But the official repo is inference-only. We wrote the training pipeline from scratch during our IMDA NSC benchmark runs (January 2026) and have been using it in production since.
+IndexTTS2 is the most reproducible full-SFT TTS model we tested — it converges predictably and retains accent characteristics well. But the official repo is inference-only. We wrote the fine-tuning pipeline from scratch during our IMDA NSC benchmark runs (January 2026) and have been using it in production since.
 
 This repo contains:
 - `trainers/train_gpt_v2.py` — full GPT fine-tuning trainer (909 lines)
