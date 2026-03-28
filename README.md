@@ -1,4 +1,4 @@
-# IndexTTS2 Supervised Fine-Tuning
+# IndexTTS2 Supervised Fine-Tuning (SFT)
 
 **The first public supervised fine-tuning (full SFT) pipeline for [IndexTTS2](https://github.com/IndexTeam/IndexTTS).** The official repo provides inference only — no fine-tuning code. This repo provides the complete SFT pipeline: data preprocessing, GPT fine-tuning, checkpoint management, and inference.
 
