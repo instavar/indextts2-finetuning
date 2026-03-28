@@ -1,10 +1,10 @@
 # IndexTTS2 Supervised Fine-Tuning (SFT)
 
-**A supervised fine-tuning (SFT) pipeline for [IndexTTS2](https://github.com/IndexTeam/IndexTTS).** The official repo provides inference only — no fine-tuning code. This repo provides the complete SFT pipeline: data preprocessing, GPT fine-tuning, checkpoint management, and inference.
+**A supervised fine-tuning (SFT) pipeline for [IndexTTS2](https://github.com/index-tts/index-tts).** The official repo provides inference only — no fine-tuning code. This repo provides the complete SFT pipeline: data preprocessing, GPT fine-tuning, checkpoint management, and inference.
 
 We used this pipeline to fine-tune IndexTTS2 (full SFT — all weights updated, no LoRA) on IMDA NSC FEMALE_01 (Singaporean English) for production voice cloning. The configuration, pitfalls, and recommendations below come from that experience.
 
-- Upstream repo: https://github.com/IndexTeam/IndexTTS (inference only)
+- Upstream repo: https://github.com/index-tts/index-tts (inference only)
 - Blog deep-dive: [IndexTTS2 Finetuning on IMDA NSC FEMALE_01](https://instavar.com/blog/ai-production-stack/IndexTTS2_Finetuning_IMDA_NSC_FEMALE_01)
 - Decision tree (9 models): [Which TTS Model Should You Use?](https://instavar.com/blog/ai-production-stack/TTS_Model_Decision_Tree_2026)
 - Benchmark hub: [Best Open-Source TTS Models for Production in 2026](https://instavar.com/blog/ai-production-stack/Best_Open_Source_TTS_Models_Production_2026)
@@ -40,7 +40,7 @@ The most impactful: **best checkpoint is never the last one.** In our run, step 
 ### 1. Install IndexTTS2
 
 ```bash
-git clone https://github.com/IndexTeam/IndexTTS.git
+git clone https://github.com/index-tts/index-tts.git
 cd IndexTTS
 pip install -e .
 cd ..
@@ -216,7 +216,7 @@ The prompt/target pairing strategy follows the IndexTTS2 paper: different uttera
 
 ## What this does NOT include
 
-- **The IndexTTS2 model itself** — install from upstream (`pip install -e .` from IndexTeam/IndexTTS)
+- **The IndexTTS2 model itself** — install from upstream (`pip install -e .` from index-tts/index-tts)
 - **Pre-trained checkpoints** — download from HuggingFace (`IndexTeam/IndexTTS-2`)
 - **Training data** — bring your own dataset. We used IMDA NSC; you need your own licensed audio.
 - **API server** — the production FastAPI wrapper is part of our SaaS infrastructure, not this repo
