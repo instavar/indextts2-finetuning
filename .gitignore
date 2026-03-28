@@ -1,0 +1,22 @@
+# Data and checkpoints
+*.pth
+*.npy
+*.wav
+*.jsonl
+processed_data/
+trained_ckpts*/
+checkpoints/hf_cache/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+*.log
