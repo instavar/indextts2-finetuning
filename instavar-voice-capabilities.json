@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0.0",
+  "repository": {
+    "slug": "instavar/indextts2-finetuning",
+    "url": "https://github.com/instavar/indextts2-finetuning",
+    "evidence_revision": "cfefdb4eafceae1e5d12ec88f1dbf21b197c6422"
+  },
+  "model": {
+    "family": "IndexTTS2",
+    "upstream_repository": "index-tts/index-tts"
+  },
+  "adaptation": {
+    "lora": {
+      "status": "unsupported",
+      "evidence": [],
+      "notes": "This companion implements full SFT and does not translate it into LoRA."
+    },
+    "full_sft": {
+      "status": "supported",
+      "evidence": [
+        {
+          "level": "validated",
+          "ref": "README.md#data-preprocessing-pipeline",
+          "claim": "The repository documents the complete preprocessing, full-SFT, checkpoint selection, pruning, and inference path."
+        }
+      ]
+    }
+  },
+  "runtimes": [
+    {
+      "id": "pytorch",
+      "status": "supported",
+      "artifact_mode": "checkpoint",
+      "streaming": false,
+      "evidence": [
+        {
+          "level": "validated",
+          "ref": "README.md#inference",
+          "claim": "The inference wrapper loads an explicit fine-tuned GPT checkpoint and generates audio."
+        }
+      ]
+    },
+    {
+      "id": "openai_compatible_http",
+      "status": "unsupported",
+      "artifact_mode": "checkpoint",
+      "streaming": false,
+      "evidence": [],
+      "notes": "The production API server is intentionally outside this repository."
+    }
+  ],
+  "evaluation": {
+    "prompt_pack": {
+      "id": "instavar-singapore-english",
+      "version": "1.0.0",
+      "sha256": "79491bec271c0aa1ea1b7dd92dd976476959f1607859a67451652f7c12e56a45"
+    },
+    "objective_metrics": [
+      "asr_word_error_rate",
+      "speaker_embedding_similarity",
+      "invalid_output_rate",
+      "duration_seconds",
+      "sample_rate_hz",
+      "silence_fraction",
+      "clipping_fraction",
+      "real_time_factor",
+      "peak_memory_bytes"
+    ],
+    "listening_criteria": [
+      "speaker_identity",
+      "singapore_english_accent_fidelity",
+      "lexical_pronunciation",
+      "cadence_variation",
+      "long_form_monotony",
+      "naturalness",
+      "emotion_and_instruction_obedience",
+      "artifact_severity",
+      "listening_fatigue"
+    ]
+  },
+  "rights": {
+    "code": "The companion code is Apache-2.0; see LICENSE. Review the current IndexTTS model terms separately.",
+    "weights": "Pin and review the upstream model-weight terms separately from this repository's code license.",
+    "dataset": "Record dataset provenance, permitted use, and speaker consent before training.",
+    "generated_output": "Review the model and dataset terms for the intended generated-output use."
+  },
+  "known_gaps": [
+    "Revalidate the adaptation path against IndexTTS 2.5 rather than treating family continuity as version equivalence.",
+    "The repository does not provide a portable serving package.",
+    "The selected checkpoint has not been rerun through the frozen Singapore English suite."
+  ]
+}
