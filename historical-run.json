@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0.0",
+  "run_id": "indextts2-female01-step14000",
+  "repository": "instavar/indextts2-finetuning",
+  "model_family": "IndexTTS2",
+  "adaptation_mode": "full_sft",
+  "evidence_revision": "cfefdb4eafceae1e5d12ec88f1dbf21b197c6422",
+  "observed_date": "2026-03-30",
+  "source_refs": [
+    "README.md#select-the-best-checkpoint",
+    "README.md#inference",
+    "README.md#prune-checkpoint-for-deployment",
+    "reports/runtime-smoke-2026-08-12.md"
+  ],
+  "stage_evidence": {
+    "preflight": {
+      "status": "not_recorded",
+      "evidence_refs": [],
+      "boundary": "The historical run predates the strict raw-corpus audit and production-path preflight contract."
+    },
+    "training": {
+      "status": "validated",
+      "evidence_refs": ["README.md#training"],
+      "boundary": "A 15,949-step full-SFT run completed with checkpoint and validation-loss records."
+    },
+    "inference": {
+      "status": "validated",
+      "evidence_refs": [
+        "README.md#inference",
+        "reports/runtime-smoke-2026-08-12.md"
+      ],
+      "boundary": "The explicit step-14000 GPT checkpoint produced the production voice through PyTorch. Its checkpoint and frozen neutral-brief output now have recorded hashes."
+    },
+    "evaluation": {
+      "status": "observed",
+      "evidence_refs": [
+        "README.md#select-the-best-checkpoint",
+        "reports/runtime-smoke-2026-08-12.md"
+      ],
+      "boundary": "Validation loss and prior listening selected step 14000, and the frozen neutral brief had ASR WER 0.0. The complete frozen suite was not run."
+    },
+    "packaging": {
+      "status": "validated",
+      "evidence_refs": ["README.md#prune-checkpoint-for-deployment"],
+      "boundary": "The checkpoint pruning path is documented and exercised, but no contract-complete immutable package was preserved."
+    }
+  },
+  "contract_migration": {
+    "experiment_manifest": "blocked",
+    "artifact_package": "blocked",
+    "blockers": [
+      "The historical run does not preserve distinct train, validation, and test hashes.",
+      "The step-14000 hash is linked only to one short objective prompt, not the complete frozen suite and listening report."
+    ]
+  }
+}
