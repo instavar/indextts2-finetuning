@@ -258,3 +258,7 @@ indextts2-finetuning/
 ## License
 
 Apache-2.0
+
+## Instavar Voice conformance
+
+[`instavar-voice-capabilities.json`](instavar-voice-capabilities.json) declares full SFT and explicit-checkpoint PyTorch inference as the supported path. It does not relabel full SFT as LoRA and does not imply that the private production API is part of this repository. CI validates the manifest against the pinned public [Instavar Voice evaluation contract](https://github.com/instavar/instavar-voice-evaluation).
