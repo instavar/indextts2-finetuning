@@ -173,7 +173,7 @@ configuration, tokenizer, preflight, smoke output, evaluation, and provenance
 files. The remaining base-model weights stay an external pinned dependency.
 
 Validate the recipe with evaluator merge
-`ebe3d9957ec2e2a44f687e22d4211545aa5b330c`. Use an empty work directory outside
+`7a88f11114dca3d23ffe99892b55ac6c7b3c7490`. Use an empty work directory outside
 the repository. `SELECTED_CHECKPOINT_NAME` must be an exact produced filename,
 such as `model_step14000.pth`; `latest.pth` is not selected implicitly. A passed
 lifecycle establishes execution and artifact lineage, not perceptual quality.
@@ -204,7 +204,7 @@ listening are complete.
 For an exact cross-runtime experiment, also pass `--artifact-set-id` and
 `--artifact-set-sha256` together. The runner rejects partial or malformed
 bindings. Generate and live-verify the corresponding runtime artifact manifest
-with evaluator revision `ebe3d9957ec2e2a44f687e22d4211545aa5b330c` before
+with evaluator revision `7a88f11114dca3d23ffe99892b55ac6c7b3c7490` before
 using `compare-runtimes`. Converted artifacts remain `derived`, not exact.
 
 Based on our IMDA NSC FEMALE_01 runs (RTX 3090 Ti, 24 GB):
