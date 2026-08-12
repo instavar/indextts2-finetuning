@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "1.2.0",
   "repository": {
     "slug": "instavar/indextts2-finetuning",
     "url": "https://github.com/instavar/indextts2-finetuning",
@@ -23,7 +23,80 @@
           "ref": "README.md#data-preprocessing-pipeline",
           "claim": "The repository documents the complete preprocessing, full-SFT, checkpoint selection, pruning, and inference path."
         }
-      ]
+      ],
+      "lifecycle": {
+        "corpus_audit": {
+          "status": "not_recorded",
+          "evidence": [],
+          "boundary": "The historical full-SFT run predates the strict grouped raw-corpus audit contract."
+        },
+        "training": {
+          "status": "validated",
+          "evidence": [
+            {
+              "level": "validated",
+              "ref": "README.md#training",
+              "claim": "A 15,949-step full-SFT run completed with checkpoint and validation-loss records."
+            }
+          ],
+          "boundary": "The run establishes one bounded training path, not current IndexTTS 2.5 equivalence."
+        },
+        "checkpoint_save": {
+          "status": "validated",
+          "evidence": [
+            {
+              "level": "validated",
+              "ref": "README.md#select-the-best-checkpoint",
+              "claim": "Multiple GPT checkpoints were preserved and step 14000 was selected."
+            }
+          ],
+          "boundary": "Checkpoint selection evidence remains separate from deployment packaging."
+        },
+        "fresh_process_reload": {
+          "status": "validated",
+          "evidence": [
+            {
+              "level": "validated",
+              "ref": "README.md#inference",
+              "claim": "Inference loaded the explicit step-14000 GPT checkpoint."
+            }
+          ],
+          "boundary": "The reload is bounded to the documented PyTorch path."
+        },
+        "held_out_inference": {
+          "status": "validated",
+          "evidence": [
+            {
+              "level": "validated",
+              "ref": "reports/runtime-smoke-2026-08-12.md",
+              "claim": "The selected checkpoint generated all 21 frozen runtime rows."
+            }
+          ],
+          "boundary": "Valid outputs do not establish perceptual improvement over the base checkpoint."
+        },
+        "evaluation": {
+          "status": "smoke_tested",
+          "evidence": [
+            {
+              "level": "smoke_tested",
+              "ref": "reports/runtime-smoke-2026-08-12.md",
+              "claim": "Runtime coverage and bounded objective checks were recorded."
+            }
+          ],
+          "boundary": "No exact base-checkpoint matrix or complete blind review is recorded."
+        },
+        "packaging": {
+          "status": "repository_declared",
+          "evidence": [
+            {
+              "level": "repository_declared",
+              "ref": "README.md#prune-checkpoint-for-deployment",
+              "claim": "The repository documents checkpoint pruning for deployment."
+            }
+          ],
+          "boundary": "The pruning path is not a contract-complete immutable promoted package."
+        }
+      }
     }
   },
   "runtimes": [
@@ -101,7 +174,16 @@
       "emotion_and_instruction_obedience",
       "artifact_severity",
       "listening_fatigue"
-    ]
+    ],
+    "matched_comparison": {
+      "status": "blocked",
+      "baseline_candidate": "indextts2-base-gpt",
+      "adapted_candidate": "indextts2-step-14000",
+      "blockers": [
+        "No frozen base-checkpoint observation matrix exists for the same prompts and seeds.",
+        "Blind listening ratings are incomplete."
+      ]
+    }
   },
   "rights": {
     "code": "The companion code is Apache-2.0; see LICENSE. Review the current IndexTTS model terms separately.",
