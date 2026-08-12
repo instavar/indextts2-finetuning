@@ -117,11 +117,33 @@ def _verify_sources(upstream: Path) -> dict[str, str]:
     return {"companion_revision": companion_revision, "upstream_revision": upstream_revision, "indextts_module": imported}
 
 
+def _verify_dataset_lineage() -> dict[str, Any]:
+    from instavar_voice_lab.lineage import verify_dataset_lineage
+
+    prepared_root = _path("PREPARED_DATA_ROOT", directory=True)
+    for name in ("TRAIN_MANIFEST", "VAL_MANIFEST"):
+        manifest = _path(name)
+        if not manifest.is_relative_to(prepared_root):
+            raise ValueError(f"{name} must be inside PREPARED_DATA_ROOT")
+    document = json.loads(_path("DATASET_LINEAGE").read_text(encoding="utf-8"))
+    return verify_dataset_lineage(
+        document,
+        producer_revision=_git_head(REPO_ROOT),
+        inputs={
+            "raw_train": (_path("RAW_TRAIN_JSONL"), "file"),
+            "raw_validation": (_path("RAW_VALIDATION_JSONL"), "file"),
+            "raw_test": (_path("RAW_TEST_JSONL"), "file"),
+        },
+        outputs={"prepared_data": (prepared_root, "tree")},
+    )
+
+
 def _preflight() -> None:
     from instavar_voice_lab.corpus import audit_corpus
 
     upstream = _path("INDEXTTS_UPSTREAM_DIR", directory=True)
     sources = _verify_sources(upstream)
+    lineage = _verify_dataset_lineage()
     splits = {
         "train": _path("RAW_TRAIN_JSONL"),
         "validation": _path("RAW_VALIDATION_JSONL"),
@@ -140,11 +162,12 @@ def _preflight() -> None:
     _safe_filename(os.environ["SELECTED_CHECKPOINT_NAME"])
     _write_json(
         _work() / "preflight" / "preflight.json",
-        {"schema_version": "1.0.0", "status": "passed", "corpus_audit": audit, "generation_rows": len(rows), "sources": sources},
+        {"schema_version": "1.0.0", "status": "passed", "corpus_audit": audit, "generation_rows": len(rows), "sources": sources, "dataset_lineage": lineage},
     )
 
 
 def _train() -> None:
+    _verify_dataset_lineage()
     work = _work()
     output = work / "train" / "output"
     environment = os.environ.copy()
@@ -206,6 +229,7 @@ def _package() -> None:
         "smoke-candidate.wav": work / "infer" / "candidate.wav",
         "experiment-manifest.json": _path("INSTAVAR_VOICE_EXPERIMENT_MANIFEST"),
         "generation-plan.json": _path("GENERATION_PLAN"),
+        "dataset-lineage.json": _path("DATASET_LINEAGE"),
         "model-config.yaml": _path("CONFIG"),
         "tokenizer.model": _path("TOKENIZER"),
     }
@@ -226,6 +250,8 @@ def run(stage: str) -> None:
     if stage not in actions:
         raise ValueError(f"unknown lifecycle stage: {stage}")
     actions[stage]()
+    if stage in {"preflight", "train"}:
+        _verify_dataset_lineage()
     result = Path(os.environ["INSTAVAR_VOICE_STAGE_RESULT"])
     _write_json(result, {"schema_version": "1.0.0", "stage": stage, "status": "passed"})
 

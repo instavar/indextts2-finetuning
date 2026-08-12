@@ -13,6 +13,8 @@
     { "name": "RAW_TEST_JSONL", "purpose": "Raw test split used for grouped corpus audit." },
     { "name": "TRAIN_MANIFEST", "purpose": "Prepared GPT training-pair manifest." },
     { "name": "VAL_MANIFEST", "purpose": "Prepared GPT validation-pair manifest." },
+    { "name": "PREPARED_DATA_ROOT", "purpose": "Root containing every prepared feature and pair artifact consumed by training." },
+    { "name": "DATASET_LINEAGE", "purpose": "Content-addressed receipt binding audited splits to the prepared feature tree." },
     { "name": "TOKENIZER", "purpose": "Pinned tokenizer file used for training and inference." },
     { "name": "CONFIG", "purpose": "Pinned IndexTTS2 model and dataset configuration." },
     { "name": "BASE_CHECKPOINT", "purpose": "Pinned base GPT checkpoint used to initialize full SFT." },
