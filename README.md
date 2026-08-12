@@ -161,6 +161,23 @@ python tools/prune_gpt_checkpoint.py \
 
 ## Recommended configuration
 
+### Executable Instavar Voice lifecycle
+
+[`instavar-voice-backend.json`](instavar-voice-backend.json) binds the supported
+full-SFT and PyTorch checkpoint path to a real five-stage lifecycle. It audits
+the raw grouped splits, verifies that `uv` imports IndexTTS2 from the pinned
+clean upstream checkout named in the experiment, runs the existing trainer,
+copies one explicitly selected `.pth` checkpoint, reloads it in a fresh process,
+runs the frozen generation plan, prunes the checkpoint, and packages the
+configuration, tokenizer, preflight, smoke output, evaluation, and provenance
+files. The remaining base-model weights stay an external pinned dependency.
+
+Validate the recipe with evaluator merge
+`d63ab559a8e0592bd373f9b51421040b540fb2b7`. Use an empty work directory outside
+the repository. `SELECTED_CHECKPOINT_NAME` must be an exact produced filename,
+such as `model_step14000.pth`; `latest.pth` is not selected implicitly. A passed
+lifecycle establishes execution and artifact lineage, not perceptual quality.
+
 ### Frozen multi-prompt evaluation
 
 Use the selected full-SFT checkpoint with one loaded engine across every

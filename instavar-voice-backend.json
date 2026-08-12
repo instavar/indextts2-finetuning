@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.2.0",
+  "backend_id": "indextts2-full-sft-pytorch",
+  "capability_binding": {
+    "manifest": "instavar-voice-capabilities.json",
+    "adaptation": "full_sft",
+    "runtime_ids": ["pytorch"]
+  },
+  "required_environment": [
+    { "name": "INDEXTTS_UPSTREAM_DIR", "purpose": "Pinned clean IndexTTS2 checkout that supplies the imported inference package." },
+    { "name": "RAW_TRAIN_JSONL", "purpose": "Raw training split used for grouped corpus audit." },
+    { "name": "RAW_VALIDATION_JSONL", "purpose": "Raw validation split used for grouped corpus audit." },
+    { "name": "RAW_TEST_JSONL", "purpose": "Raw test split used for grouped corpus audit." },
+    { "name": "TRAIN_MANIFEST", "purpose": "Prepared GPT training-pair manifest." },
+    { "name": "VAL_MANIFEST", "purpose": "Prepared GPT validation-pair manifest." },
+    { "name": "TOKENIZER", "purpose": "Pinned tokenizer file used for training and inference." },
+    { "name": "CONFIG", "purpose": "Pinned IndexTTS2 model and dataset configuration." },
+    { "name": "BASE_CHECKPOINT", "purpose": "Pinned base GPT checkpoint used to initialize full SFT." },
+    { "name": "MODEL_DIR", "purpose": "Pinned directory containing the remaining IndexTTS2 inference weights." },
+    { "name": "SPEAKER", "purpose": "Authorized reference-speaker audio for held-out synthesis." },
+    { "name": "SELECTED_CHECKPOINT_NAME", "purpose": "Single safe checkpoint filename created under the training output." },
+    { "name": "GENERATION_PLAN", "purpose": "Frozen Instavar Voice generation plan containing this candidate." },
+    { "name": "CANDIDATE_ID", "purpose": "Candidate identifier present in the frozen generation plan." }
+  ],
+  "commands": {
+    "preflight": ["{python}", "scripts/instavar_voice_lifecycle.py", "preflight"],
+    "train": ["{python}", "scripts/instavar_voice_lifecycle.py", "train"],
+    "infer": ["{python}", "scripts/instavar_voice_lifecycle.py", "infer"],
+    "evaluate": ["{python}", "scripts/instavar_voice_lifecycle.py", "evaluate"],
+    "package": ["{python}", "scripts/instavar_voice_lifecycle.py", "package"]
+  },
+  "expected_artifacts": {
+    "preflight": ["preflight/preflight.json"],
+    "train": ["train/selected-checkpoint.pth"],
+    "infer": ["infer/candidate.wav"],
+    "evaluate": ["evaluate/evaluation-bundle.tar"],
+    "package": ["package/checkpoint-package.tar"]
+  },
+  "timeout_seconds": {
+    "preflight": 300,
+    "train": 86400,
+    "infer": 1800,
+    "evaluate": 21600,
+    "package": 3600
+  }
+}
