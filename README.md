@@ -161,6 +161,28 @@ python tools/prune_gpt_checkpoint.py \
 
 ## Recommended configuration
 
+### Frozen multi-prompt evaluation
+
+Use the selected full-SFT checkpoint with one loaded engine across every
+IndexTTS2 row in an Instavar Voice generation plan:
+
+```bash
+python tools/run_evaluation_suite.py \
+  --config checkpoints/config_finetune.yaml \
+  --model-dir checkpoints \
+  --gpt-checkpoint checkpoints/model_step14000.pth \
+  --speaker assets/female01_prompt.wav \
+  --generation-plan evaluation/generation-plan.json \
+  --candidate-id index-step14000 \
+  --output-dir evaluation/index-step14000 \
+  --device cuda:0
+```
+
+The runner freezes Python, NumPy, and PyTorch seeds for every planned sample and
+records failed generations instead of dropping them. A complete matrix is
+still not a perceptual-quality result until objective extraction and blind
+listening are complete.
+
 Based on our IMDA NSC FEMALE_01 runs (RTX 3090 Ti, 24 GB):
 
 | Parameter | Value | Why |
