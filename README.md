@@ -173,7 +173,7 @@ configuration, tokenizer, preflight, smoke output, evaluation, and provenance
 files. The remaining base-model weights stay an external pinned dependency.
 
 Validate the recipe with evaluator merge
-`5f5eb50c5616656e7d659b7404dc30b842180569`. Use an empty work directory outside
+`1a413952ae3f43aeda88fde5109e724771c12b0c`. Use an empty work directory outside
 the repository. `SELECTED_CHECKPOINT_NAME` must be an exact produced filename,
 such as `model_step14000.pth`; `latest.pth` is not selected implicitly. A passed
 lifecycle establishes execution and artifact lineage, not perceptual quality.
@@ -204,7 +204,7 @@ listening are complete.
 For an exact cross-runtime experiment, also pass `--artifact-set-id` and
 `--artifact-set-sha256` together. The runner rejects partial or malformed
 bindings. Generate and live-verify the corresponding runtime artifact manifest
-with evaluator revision `5f5eb50c5616656e7d659b7404dc30b842180569` before
+with evaluator revision `1a413952ae3f43aeda88fde5109e724771c12b0c` before
 using `compare-runtimes`. Converted artifacts remain `derived`, not exact.
 
 Based on our IMDA NSC FEMALE_01 runs (RTX 3090 Ti, 24 GB):
@@ -310,7 +310,7 @@ Apache-2.0
 [`instavar-voice-capabilities.json`](instavar-voice-capabilities.json) declares full SFT and explicit-checkpoint PyTorch inference as the supported path. It does not relabel full SFT as LoRA and does not imply that the private production API is part of this repository. CI validates the manifest against the pinned public [Instavar Voice evaluation contract](https://github.com/instavar/instavar-voice-evaluation).
 
 The lifecycle preserves invalid generations as explicit rows, then uses
-evaluator revision `5f5eb50c5616656e7d659b7404dc30b842180569` to bind timing,
+evaluator revision `1a413952ae3f43aeda88fde5109e724771c12b0c` to bind timing,
 duration, and peak-memory fields to the frozen plan and live output audio. Use
 the packaged `objective-observations.json`, not the raw generation file, for a
 version 1.1 runtime comparison.
@@ -332,6 +332,9 @@ that can support those claims while preserving candidate-symmetric coverage.
 Version 0.24 binds exact requested text, optional instructions, and lexical
 target surfaces into each blind stimulus while excluding accepted ASR aliases
 and candidate identity. Reviewers no longer need an uncontrolled prompt file.
+Version 0.25 binds each listening criterion to a reviewer question, low and
+high scale anchors, and an explicit score direction. Harm criteria remain raw
+and separate instead of being silently inverted or folded into a composite.
 This companion bundles neither model
 weights nor optional extractor dependencies and runs neither learned metric
 automatically. Run them explicitly after generation with trusted, content-addressed
