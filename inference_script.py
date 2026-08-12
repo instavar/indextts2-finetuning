@@ -22,11 +22,15 @@ are taken from the provided config file.
 from __future__ import annotations
 
 import argparse
+import random
 from pathlib import Path
 import tempfile
 from typing import Any, Dict, Optional
 
 from indextts.infer_v2 import IndexTTS2
+
+import numpy as np
+import torch
 
 
 def parse_args() -> argparse.Namespace:
@@ -157,6 +161,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print verbose inference logs.",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for Python, NumPy, and PyTorch generation (default: 42).",
+    )
 
     return parser.parse_args()
 
@@ -185,6 +195,11 @@ def build_generation_kwargs(args: argparse.Namespace) -> Dict[str, Any]:
 
 def main() -> None:
     args = parse_args()
+    random.seed(args.seed)
+    np.random.seed(args.seed % (2**32))
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
     text = load_text(args)
     generation_kwargs = build_generation_kwargs(args)
 
