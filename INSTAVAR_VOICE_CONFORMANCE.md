@@ -1,6 +1,6 @@
 # Instavar Voice conformance
 
-This repository declares its model-specific adaptation and runtime surface in `instavar-voice-capabilities.json`. The manifest and executable [`instavar-voice-backend.json`](instavar-voice-backend.json) full-SFT recipe use the public [Instavar Voice evaluation contract](https://github.com/instavar/instavar-voice-evaluation) pinned by CI to commit `5f5eb50c5616656e7d659b7404dc30b842180569`.
+This repository declares its model-specific adaptation and runtime surface in `instavar-voice-capabilities.json`. The manifest and executable [`instavar-voice-backend.json`](instavar-voice-backend.json) full-SFT recipe use the public [Instavar Voice evaluation contract](https://github.com/instavar/instavar-voice-evaluation) pinned by CI to commit `2088146501081138b87e8e398eda610a392c0d4d`.
 
 The backend verifies clean companion and imported upstream revisions, audits raw grouped splits, runs the existing full-SFT launcher, reloads one explicit `.pth` checkpoint, executes the frozen plan, prunes the selected checkpoint, and packages its experiment and evaluation evidence. CI validates and dependency-tests the recipe without performing GPU training.
 
