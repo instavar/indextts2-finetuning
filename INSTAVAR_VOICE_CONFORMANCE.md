@@ -1,6 +1,8 @@
 # Instavar Voice conformance
 
-This repository declares its model-specific adaptation and runtime surface in `instavar-voice-capabilities.json`. The manifest uses the public [Instavar Voice evaluation contract](https://github.com/instavar/instavar-voice-evaluation) pinned by CI to merge commit `56b32c954e950fe915d4c6595c0630985576a9b7`.
+This repository declares its model-specific adaptation and runtime surface in `instavar-voice-capabilities.json`. The manifest and executable [`instavar-voice-backend.json`](instavar-voice-backend.json) full-SFT recipe use the public [Instavar Voice evaluation contract](https://github.com/instavar/instavar-voice-evaluation) pinned by CI to merge commit `d63ab559a8e0592bd373f9b51421040b540fb2b7`.
+
+The backend verifies clean companion and imported upstream revisions, audits raw grouped splits, runs the existing full-SFT launcher, reloads one explicit `.pth` checkpoint, executes the frozen plan, prunes the selected checkpoint, and packages its experiment and evaluation evidence. CI validates and dependency-tests the recipe without performing GPU training.
 
 Capability schema 1.2 records each full-SFT lifecycle stage separately and names the exact blocker for the matched base-checkpoint comparison. A repository-level `supported` label no longer implies corpus audit, evaluation, or packaging completeness.
 
