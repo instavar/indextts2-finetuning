@@ -35,4 +35,9 @@ jobs:
       - name: Test lifecycle wrapper without model dependencies
         env:
           PYTHONPATH: .instavar-voice-evaluation
-        run: python -m unittest tests/lifecycle_backend_test.py -v
+        run: >-
+          python -m unittest
+          tests/lifecycle_backend_test.py
+          tests/evaluation_suite_test.py
+          tests/openai_speech_server_test.py
+          -v

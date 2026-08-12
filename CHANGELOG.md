@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Add an experimental fixed-artifact OpenAI-compatible HTTP speech subset.
+- Reject request-controlled model and filesystem paths, unsupported fields,
+  duplicate JSON fields, overlapping synthesis, oversized bodies, invalid WAV
+  output, and unauthenticated non-loopback binding.
+- Add dependency-free live HTTP contract tests and document the real-runtime
+  qualification boundary.
+- Support literal IPv6 listeners and close temporary configuration files before
+  model loading for cross-platform file semantics.
+
 ## v0.1.0
 
 - Initial release of IndexTTS2 fine-tuning pipeline

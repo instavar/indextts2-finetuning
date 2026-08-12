@@ -16,6 +16,7 @@ IndexTTS2 is the most reproducible full-SFT TTS model we tested — it converges
 This repo contains:
 - `trainers/train_gpt_v2.py` — full GPT fine-tuning trainer (909 lines)
 - `tools/` — complete data preprocessing pipeline (6 scripts)
+- `tools/openai_speech_server.py` - experimental OpenAI-compatible HTTP speech server
 - `inference_script.py` — CLI inference wrapper
 - `tests/` — padding and regression tests
 - `scripts/train.sh` — training launcher with validated hyperparameters
@@ -148,6 +149,63 @@ python inference_script.py \
 ```
 
 > **Tip:** Always use `--fp16` on CUDA. Use `--gpt-checkpoint` (not `--model-dir`) to load fine-tuned weights.
+
+### Experimental OpenAI-compatible HTTP serving
+
+The reference server exposes one fixed checkpoint and one fixed speaker prompt
+through `POST /v1/audio/speech`. It implements a deliberately strict subset of
+the OpenAI speech request: `model`, `input`, `voice`, optional
+`response_format="wav"`, and optional `speed=1.0`. Unsupported fields or values
+are rejected instead of being silently ignored.
+
+```bash
+python tools/openai_speech_server.py \
+  --config checkpoints/config.yaml \
+  --model-dir checkpoints \
+  --gpt-checkpoint trained_ckpts/model_step14000.pth \
+  --speaker /path/to/reviewed-speaker-prompt.wav \
+  --model-id indextts2-finetuned \
+  --voice-id female01-reviewed \
+  --device cuda:0 \
+  --fp16
+```
+
+The default bind is `127.0.0.1:8000`. A non-loopback bind fails closed unless
+`--api-key-env` names a nonempty environment variable. Pass the variable name,
+never the secret value, on the command line:
+
+```bash
+export INDEXTTS2_API_KEY="replace-with-a-secret-from-your-secret-store"
+python tools/openai_speech_server.py \
+  --config checkpoints/config.yaml \
+  --model-dir checkpoints \
+  --gpt-checkpoint trained_ckpts/model_step14000.pth \
+  --speaker /path/to/reviewed-speaker-prompt.wav \
+  --host 0.0.0.0 \
+  --api-key-env INDEXTTS2_API_KEY \
+  --device cuda:0 \
+  --fp16
+```
+
+```bash
+curl --fail-with-body http://127.0.0.1:8000/v1/audio/speech \
+  -H 'Content-Type: application/json' \
+  --data '{"model":"indextts2-finetuned","voice":"instavar-reference","input":"A short test sentence.","response_format":"wav"}' \
+  --output response.wav
+```
+
+The checkpoint, tokenizer, config, speaker prompt, sampling configuration, seed,
+and output path are startup-only controls. Requests cannot supply local paths.
+The process loads the engine once, rejects overlapping synthesis with HTTP 429,
+limits request and output sizes, validates the generated PCM WAV, and returns a
+bounded error body without engine exception details. See
+[`docs/openai-compatible-serving.md`](docs/openai-compatible-serving.md) for the
+contract, security boundary, tests, and production gaps.
+
+This surface is experimental and repository-declared. The dependency-free tests
+exercise the HTTP and safety contracts with a fake engine. They do not prove that
+the real checkpoint loads, that CUDA generation succeeds, that audio quality is
+acceptable, or that the server is production-ready.
 
 ### 7. Prune checkpoint for deployment
 
