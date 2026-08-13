@@ -3,7 +3,7 @@
   "repository": {
     "slug": "instavar/indextts2-finetuning",
     "url": "https://github.com/instavar/indextts2-finetuning",
-    "evidence_revision": "cfefdb4eafceae1e5d12ec88f1dbf21b197c6422"
+    "evidence_revision": "0dfceb28b3baa25352dd8cdbbca261e288acae55"
   },
   "model": {
     "family": "IndexTTS2",
