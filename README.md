@@ -316,6 +316,11 @@ records failed generations instead of dropping them. A complete matrix is
 still not a perceptual-quality result until objective extraction and blind
 listening are complete.
 
+The first exact base versus selected step-14000 long-form pair is documented in
+[`reports/matched-long-form-base-full-sft-2026-08-13.md`](reports/matched-long-form-base-full-sft-2026-08-13.md).
+It completed objective and non-directional prosody coverage and prepared a
+focused blind pack. It did not produce a quality winner or listening ratings.
+
 For an exact cross-runtime experiment, also pass `--artifact-set-id` and
 `--artifact-set-sha256` together. The runner rejects partial or malformed
 bindings. Generate and live-verify the corresponding runtime artifact manifest

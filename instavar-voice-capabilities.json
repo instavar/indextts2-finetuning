@@ -3,7 +3,7 @@
   "repository": {
     "slug": "instavar/indextts2-finetuning",
     "url": "https://github.com/instavar/indextts2-finetuning",
-    "evidence_revision": "fae6d271d9544395b76ac52522ab2737d18e6dc0"
+    "evidence_revision": "8acc35332bebc0e2bfcf0ed30cef492ba0abd7e2"
   },
   "model": {
     "family": "IndexTTS2",
@@ -86,9 +86,14 @@
               "level": "smoke_tested",
               "ref": "reports/runtime-smoke-2026-08-12.md",
               "claim": "Runtime coverage and bounded objective checks were recorded."
+            },
+            {
+              "level": "smoke_tested",
+              "ref": "reports/matched-long-form-base-full-sft-2026-08-13.md",
+              "claim": "One exact long-form base-versus-step-14000 pair completed all required objective metrics, non-directional prosody comparison, and focused blind-pack generation."
             }
           ],
-          "boundary": "No exact base-checkpoint matrix or complete blind review is recorded."
+          "boundary": "The exact base comparison covers one prompt and seed. No blind ratings, multi-seed long-form matrix, or quality winner is recorded."
         },
         "packaging": {
           "status": "repository_declared",
@@ -196,7 +201,6 @@
       "baseline_candidate": "indextts2-base-gpt",
       "adapted_candidate": "indextts2-step-14000",
       "blockers": [
-        "No frozen base-checkpoint observation matrix exists for the same prompts and seeds.",
         "Blind listening ratings are incomplete."
       ]
     }
@@ -212,6 +216,6 @@
     "Run an interrupted real GPU full-SFT job through the guarded epoch-boundary resume path; dependency-free checks do not establish numerical continuation.",
     "Run a real lifecycle package through managed remote backup and a verified restore drill after completing model, dataset, and speaker-rights review.",
     "The experimental HTTP reference server lacks real-checkpoint, GPU, matched CLI, load, restart, and production-gateway evidence.",
-    "The 21-row frozen runtime suite has no human ratings or base-checkpoint comparison."
+    "The exact base versus step-14000 comparison covers one long-form prompt and seed; multi-seed coverage and human ratings remain incomplete."
   ]
 }
