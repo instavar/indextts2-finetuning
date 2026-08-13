@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import hmac
 import importlib
 import ipaddress
@@ -82,6 +83,7 @@ class SpeechServerConfig:
     max_audio_bytes: int = 100 * 1024 * 1024
     request_timeout_seconds: float = 30.0
     api_key: str | None = None
+    startup_receipt_sha256: str | None = None
 
     def validate(self) -> None:
         for label, value in (("model id", self.model_id), ("voice id", self.voice_id)):
@@ -103,6 +105,10 @@ class SpeechServerConfig:
             raise ValueError("request timeout seconds must be finite and positive")
         if self.api_key is not None and not self.api_key:
             raise ValueError("API key must be nonempty when configured")
+        if self.startup_receipt_sha256 is not None and not re.fullmatch(
+            r"[0-9a-f]{64}", self.startup_receipt_sha256
+        ):
+            raise ValueError("startup receipt sha256 must be a lowercase SHA-256 digest")
 
 
 @dataclass(frozen=True)
@@ -226,6 +232,84 @@ def _resolve_directory(path: Path, label: str) -> Path:
     if not resolved.is_dir():
         raise ValueError(f"{label} must be a directory")
     return resolved
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def build_startup_receipt(
+    *,
+    config_path: Path,
+    gpt_checkpoint: Path,
+    speaker: Path,
+    tokenizer: Path | None,
+    model_id: str,
+    voice_id: str,
+    device: str | None,
+    fp16: bool,
+    seed: int,
+    max_text_tokens: int,
+    interval_silence: int,
+    generation_kwargs: Mapping[str, Any],
+    artifact_set_id: str | None,
+    artifact_set_sha256: str | None,
+) -> dict[str, Any]:
+    """Describe the fixed live configuration without retaining local paths."""
+
+    if bool(artifact_set_id) != bool(artifact_set_sha256):
+        raise ValueError("artifact set id and sha256 must be provided together")
+    if artifact_set_id is not None and not PUBLIC_ID_RE.fullmatch(artifact_set_id):
+        raise ValueError("artifact set id must be a bounded public identifier")
+    if artifact_set_sha256 is not None and not re.fullmatch(r"[0-9a-f]{64}", artifact_set_sha256):
+        raise ValueError("artifact set sha256 must be a lowercase SHA-256 digest")
+
+    def artifact(path: Path) -> dict[str, Any]:
+        resolved = _resolve_file(path, "startup artifact")
+        return {"sha256": sha256_file(resolved), "size_bytes": resolved.stat().st_size}
+
+    receipt: dict[str, Any] = {
+        "schema_version": "1.0.0",
+        "runtime_id": "indextts2_openai_compatible_http",
+        "model_id": model_id,
+        "voice_id": voice_id,
+        "device": device,
+        "fp16": fp16,
+        "seed": seed,
+        "max_text_tokens": max_text_tokens,
+        "interval_silence": interval_silence,
+        "generation_kwargs": dict(sorted(generation_kwargs.items())),
+        "artifacts": {
+            "config": artifact(config_path),
+            "gpt_checkpoint": artifact(gpt_checkpoint),
+            "speaker": artifact(speaker),
+            **({"tokenizer": artifact(tokenizer)} if tokenizer is not None else {}),
+        },
+        "boundary": (
+            "This receipt proves the fixed startup inputs observed by the reference server. "
+            "It does not hash every dependency under model_dir or prove loader behavior, host trust, quality, or rights."
+        ),
+    }
+    if artifact_set_id is not None:
+        receipt["artifact_set_id"] = artifact_set_id
+        receipt["artifact_set_sha256"] = artifact_set_sha256
+    return receipt
+
+
+def write_startup_receipt(path: Path, receipt: Mapping[str, Any]) -> str:
+    """Publish a canonical no-overwrite receipt and return its byte digest."""
+
+    payload = (json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("xb") as output:
+        output.write(payload)
+        output.flush()
+        os.fsync(output.fileno())
+    return hashlib.sha256(payload).hexdigest()
 
 
 def validate_generation_kwargs(values: Mapping[str, Any]) -> dict[str, Any]:
@@ -414,6 +498,11 @@ def build_handler(service: SpeechService) -> type[BaseHTTPRequestHandler]:
                             "model": service.config.model_id,
                             "status": "ready",
                             "voice": service.config.voice_id,
+                            **(
+                                {"startup_receipt_sha256": service.config.startup_receipt_sha256}
+                                if service.config.startup_receipt_sha256
+                                else {}
+                            ),
                         },
                         request_id,
                     )
@@ -521,6 +610,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--request-timeout-seconds", type=float, default=30.0)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--startup-receipt", type=Path)
+    parser.add_argument("--artifact-set-id")
+    parser.add_argument("--artifact-set-sha256")
     parser.add_argument(
         "--api-key-env",
         help="Environment variable holding the bearer token. Never pass the token as an argument.",
@@ -534,16 +626,6 @@ def main() -> int:
     if not 1 <= args.port <= 65_535:
         raise ValueError("port must be between 1 and 65535")
     api_key = read_api_key(args.host, args.api_key_env)
-    config = SpeechServerConfig(
-        model_id=args.model_id,
-        voice_id=args.voice_id,
-        max_input_chars=args.max_input_chars,
-        max_body_bytes=args.max_body_bytes,
-        max_audio_bytes=args.max_audio_bytes,
-        request_timeout_seconds=args.request_timeout_seconds,
-        api_key=api_key,
-    )
-    config.validate()
     generation_kwargs = {
         key: value
         for key, value in {
@@ -567,6 +649,38 @@ def main() -> int:
         interval_silence=args.interval_silence,
         generation_kwargs=generation_kwargs,
     )
+    receipt_sha256 = None
+    if args.startup_receipt is not None:
+        receipt = build_startup_receipt(
+            config_path=args.config,
+            gpt_checkpoint=args.gpt_checkpoint,
+            speaker=args.speaker,
+            tokenizer=args.tokenizer,
+            model_id=args.model_id,
+            voice_id=args.voice_id,
+            device=args.device,
+            fp16=args.fp16,
+            seed=args.seed,
+            max_text_tokens=args.max_text_tokens,
+            interval_silence=args.interval_silence,
+            generation_kwargs=generation_kwargs,
+            artifact_set_id=args.artifact_set_id,
+            artifact_set_sha256=args.artifact_set_sha256,
+        )
+        receipt_sha256 = write_startup_receipt(args.startup_receipt, receipt)
+    elif args.artifact_set_id or args.artifact_set_sha256:
+        raise ValueError("artifact set binding requires --startup-receipt")
+    config = SpeechServerConfig(
+        model_id=args.model_id,
+        voice_id=args.voice_id,
+        max_input_chars=args.max_input_chars,
+        max_body_bytes=args.max_body_bytes,
+        max_audio_bytes=args.max_audio_bytes,
+        request_timeout_seconds=args.request_timeout_seconds,
+        api_key=api_key,
+        startup_receipt_sha256=receipt_sha256,
+    )
+    config.validate()
     server = create_http_server(args.host, args.port, build_handler(SpeechService(engine, config)))
     LOG.info(
         "ready host=%s port=%d model=%s voice=%s auth=%s",

@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0.0",
+  "protocol_id": "indextts2-step14000-http-runtime-2026-08-14",
+  "frozen_before_generation": true,
+  "candidate_id": "indextts2-step14000",
+  "runtime": {
+    "server": "tools/openai_speech_server.py",
+    "client": "tools/qualify_openai_speech_runtime.py",
+    "parity_validator": "tools/validate_http_cli_parity.py",
+    "ood_probe": "tools/probe_openai_speech_runtime.py",
+    "device": "cuda",
+    "fp16": true,
+    "model_id": "indextts2-finetuned",
+    "voice_id": "instavar-reference",
+    "max_text_tokens": 120,
+    "interval_silence": 200,
+    "generation_kwargs": {}
+  },
+  "host": {
+    "gpu": "NVIDIA GeForce RTX 3090 Ti",
+    "gpu_memory_mib": 24564,
+    "driver": "580.173.02",
+    "torch": "2.8.0+cu128",
+    "torch_cuda": "12.8"
+  },
+  "generation_plan": {
+    "path": "evaluation/preregistration/indextts2-step14000-http-runtime-plan-2026-08-14.json",
+    "file_sha256": "33f7ac75ed069d79a82c8bc77bb867f05a0e88876474d940598b9473d0463b72",
+    "row_count": 9,
+    "prompt_ids": [
+      "neutral-brief",
+      "local-context",
+      "structured-long-form"
+    ],
+    "seeds": [42, 314159, 20260812]
+  },
+  "artifact_manifest": {
+    "path": "evaluation/preregistration/indextts2-step14000-http-artifact-manifest-2026-08-14.json",
+    "file_sha256": "3a094e1422a7d7834b10db076f076b0ca80748ee60d8efebd07a9497f4317f60"
+  },
+  "execution": {
+    "cli_control": "Generate all nine rows with one fresh CLI process and the selected checkpoint.",
+    "http_cold_starts": "Start one fresh server per seed, bind a no-overwrite startup receipt, and generate the three matching prompt rows through HTTP.",
+    "restart_probe": "Restart seed 42 in a new process and repeat neutral-brief. Compare both HTTP WAV hashes and the matched CLI WAV hash.",
+    "malformed_request_probe": "Require fixed-artifact path injection, wrong model, and unsupported format to fail before synthesis with their frozen status and error codes.",
+    "overlap_probe": "Send two overlapping structured-long-form requests and require one HTTP 200 plus one HTTP 429 server_busy response.",
+    "source_checkout": "Use a clean detached checkout of the committed feature revision and leave it unmodified."
+  },
+  "promotion_gates": {
+    "runtime_smoke_tested": [
+      "All nine planned CLI rows are valid.",
+      "All nine planned HTTP rows are valid and bound to their startup receipts.",
+      "Each matched HTTP and CLI WAV is byte-identical.",
+      "The seed 42 restart WAV is byte-identical.",
+      "All malformed-request and overlap probes pass."
+    ],
+    "runtime_validated": [
+      "The smoke gates pass.",
+      "The complete objective evaluation matrix and blinded listening gates pass at a scope sufficient for a quality claim."
+    ]
+  },
+  "failure_policy": "Retain failed rows and probe reports. Do not promote runtime status beyond the evidence.",
+  "boundaries": [
+    "This slice excludes instruction-bearing prompts because the HTTP subset does not implement emotion instructions.",
+    "Exact WAV parity is a deterministic mechanism result, not a quality result.",
+    "One host and one selected checkpoint do not establish load capacity, ingress security, cancellation, OOM recovery, or production readiness.",
+    "The artifact manifest does not content-bind every inherited dependency under the model directory."
+  ]
+}

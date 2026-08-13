@@ -4,6 +4,7 @@ import http.client
 import io
 import json
 import socket
+import tempfile
 import threading
 import unittest
 import wave
@@ -145,6 +146,45 @@ class StartupValidationTests(unittest.TestCase):
         values = {"top_k": 20, "top_p": 0.8, "temperature": 0.9, "num_beams": 2}
         self.assertEqual(server.validate_generation_kwargs(values), values)
 
+    def test_startup_receipt_binds_artifacts_without_retaining_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = root / "config.yaml"
+            checkpoint = root / "gpt.pth"
+            speaker = root / "speaker.wav"
+            tokenizer = root / "tokenizer.model"
+            for path, payload in (
+                (config, b"config"),
+                (checkpoint, b"checkpoint"),
+                (speaker, b"speaker"),
+                (tokenizer, b"tokenizer"),
+            ):
+                path.write_bytes(payload)
+            receipt = server.build_startup_receipt(
+                config_path=config,
+                gpt_checkpoint=checkpoint,
+                speaker=speaker,
+                tokenizer=tokenizer,
+                model_id="fixed-model",
+                voice_id="fixed-voice",
+                device="cuda",
+                fp16=True,
+                seed=42,
+                max_text_tokens=120,
+                interval_silence=200,
+                generation_kwargs={"top_p": 0.8},
+                artifact_set_id="index-step14000",
+                artifact_set_sha256="a" * 64,
+            )
+            output = root / "receipt.json"
+            digest = server.write_startup_receipt(output, receipt)
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
+            serialized = output.read_text(encoding="utf-8")
+            self.assertNotIn(str(root), serialized)
+            self.assertEqual(receipt["artifacts"]["gpt_checkpoint"]["sha256"], server.sha256_file(checkpoint))
+            with self.assertRaises(FileExistsError):
+                server.write_startup_receipt(output, receipt)
+
 
 class SpeechServiceTests(unittest.TestCase):
     def test_generates_valid_wav_in_a_server_owned_temporary_directory(self) -> None:
@@ -229,6 +269,22 @@ class SpeechHTTPTests(unittest.TestCase):
         self.assertEqual(headers["x-content-type-options"], "nosniff")
         self.assertTrue(headers["x-request-id"].startswith("req_"))
         self.assertEqual(body, wav_bytes())
+
+    def test_ready_response_exposes_startup_receipt_binding(self) -> None:
+        config = server.SpeechServerConfig(
+            model_id="fixed-model",
+            voice_id="fixed-voice",
+            startup_receipt_sha256="a" * 64,
+        )
+        service = server.SpeechService(self.engine, config)
+        with RunningServer(service) as running:
+            connection = http.client.HTTPConnection("127.0.0.1", running.port, timeout=2)
+            connection.request("GET", "/readyz")
+            response = connection.getresponse()
+            payload = json.loads(response.read())
+            connection.close()
+        self.assertEqual(response.status, 200)
+        self.assertEqual(payload["startup_receipt_sha256"], "a" * 64)
 
     def test_live_request_requires_authentication(self) -> None:
         service = server.SpeechService(self.engine, self.config)

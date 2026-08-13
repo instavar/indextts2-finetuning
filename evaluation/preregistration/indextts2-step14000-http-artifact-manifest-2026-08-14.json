@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_set_id": "indextts2-step14000-http-qualification-v1",
+  "artifacts": {
+    "config": {
+      "sha256": "ea9c2815ecc3874577c7ac158b97248c027250e5b05972fbbb1216b6d6539081",
+      "size_bytes": 2882
+    },
+    "gpt_checkpoint": {
+      "sha256": "3db5cb0b9c00d0025933599bf3133896fb45ad6c37d5855f4dafc5f03ed40676",
+      "size_bytes": 7701606403
+    },
+    "speaker": {
+      "sha256": "2dc2a3d83dab1e5569d1adac7828c907acc78271cb495d80228b15ca6e460237",
+      "size_bytes": 401964
+    },
+    "tokenizer": {
+      "sha256": "b2a5ce8090d32da3642cc4f81fdc996376bc6dd3f4cd5e3d165f71120d9f2bc8",
+      "size_bytes": 169
+    }
+  },
+  "inherited_model_dependencies": {
+    "status": "not_content_bound_by_this_manifest",
+    "boundary": "The IndexTTS2 model directory contains inherited codec, semantic, acoustic, speaker, and vocoder dependencies that this focused manifest does not enumerate. The live loader and startup receipt do not prove the identity of those dependencies."
+  },
+  "scope": "Binds the selected full-SFT GPT checkpoint and explicit config, tokenizer, and speaker prompt for the focused HTTP qualification."
+}

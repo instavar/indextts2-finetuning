@@ -32,6 +32,7 @@ Only the operator can choose these values at startup:
 - device and precision
 - seed and sampling controls
 - model and voice IDs
+- optional artifact-set identity and startup receipt destination
 
 The HTTP request cannot name any path or swap any of those assets. Generated
 audio is written to a server-owned temporary directory, validated as a bounded,
@@ -43,6 +44,14 @@ selecting an unreviewed voice. It does not make the startup assets immutable.
 For a reproducible deployment, separately bind the complete base dependency,
 config, tokenizer, speaker prompt, and fine-tuned checkpoint to a reviewed
 content-addressed artifact manifest.
+
+For qualification runs, pass `--startup-receipt` together with
+`--artifact-set-id` and `--artifact-set-sha256`. The server writes the receipt
+with exclusive creation after model loading and exposes its byte SHA-256 from
+`/readyz`. The receipt hashes the config, selected GPT checkpoint, speaker
+prompt, and optional tokenizer without retaining their local paths. It does not
+walk or hash every inherited dependency in `model_dir`, so the artifact-set
+manifest must state that boundary explicitly.
 
 ## Concurrency and resource behavior
 
@@ -101,7 +110,46 @@ The tests cover fixed model and voice selection, request-controlled path
 rejection, strict field behavior, body and text limits, bearer authentication,
 loopback binding, non-loopback fail-closed behavior, generated WAV validation,
 temporary output cleanup, concurrency rejection, live HTTP headers, and bounded
-engine errors.
+engine errors. They also cover no-overwrite startup receipts, live receipt
+binding, an exact frozen-row client, and HTTP versus CLI parity validation.
+
+The focused qualification tools are dependency-light after the server starts:
+
+```bash
+python tools/qualify_openai_speech_runtime.py \
+  --endpoint http://127.0.0.1:8000 \
+  --model-id indextts2-finetuned \
+  --voice-id instavar-reference \
+  --generation-plan evaluation/generation-plan.json \
+  --candidate-id indextts2-step14000 \
+  --sample-id indextts2-step14000--neutral-brief--seed-42 \
+  --expected-startup-receipt-sha256 <sha256> \
+  --output-dir evaluation/http/seed-42/neutral-brief
+
+python tools/validate_http_cli_parity.py \
+  --generation-plan evaluation/generation-plan.json \
+  --candidate-id indextts2-step14000 \
+  --sample-id indextts2-step14000--neutral-brief--seed-42 \
+  --cli-observations evaluation/cli/generation-observations.json \
+  --http-observation evaluation/http/seed-42/neutral-brief/http-generation-observation.json \
+  --startup-receipt evaluation/http/seed-42/startup-receipt.json \
+  --output evaluation/http/seed-42/neutral-brief/parity.json
+
+python tools/probe_openai_speech_runtime.py \
+  --endpoint http://127.0.0.1:8000 \
+  --model-id indextts2-finetuned \
+  --voice-id instavar-reference \
+  --input "A long request keeps synthesis active for the overlap probe." \
+  --expected-startup-receipt-sha256 <sha256> \
+  --include-concurrency \
+  --output evaluation/http/contract-probes.json
+```
+
+The qualification client rejects instruction-bearing rows because this HTTP
+subset cannot apply the CLI engine's emotion-text controls. The parity validator
+requires exact WAV equality and returns nonzero when the bytes differ. Exact
+equality proves only one deterministic matched row under the frozen artifacts
+and settings.
 
 A real-runtime qualification still requires all of the following:
 

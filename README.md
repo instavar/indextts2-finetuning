@@ -431,6 +431,14 @@ Apache-2.0
 
 [`instavar-voice-capabilities.json`](instavar-voice-capabilities.json) declares full SFT and explicit-checkpoint PyTorch inference as the supported path. It does not relabel full SFT as LoRA and does not imply that the private production API is part of this repository. CI validates the manifest against the pinned public [Instavar Voice evaluation contract](https://github.com/instavar/instavar-voice-evaluation).
 
+The experimental OpenAI-compatible subset now has content-bound startup
+receipts, an exact frozen-row HTTP client, a CLI parity validator, and malformed
+plus overlapping-request probes. The preregistered nine-row CUDA qualification
+protocol lives under [`evaluation/preregistration/`](evaluation/preregistration/).
+These tools make a real runtime result auditable, but their presence alone does
+not promote the HTTP runtime beyond `experimental`; see
+[`docs/openai-compatible-serving.md`](docs/openai-compatible-serving.md).
+
 The lifecycle preserves invalid generations as explicit rows, then uses
 evaluator revision `8feadf7bbda75abe1c305c63e362c41b86451cda` to bind timing,
 duration, and peak-memory fields to the frozen plan and live output audio. Use
