@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
 def error_code(body: bytes) -> str | None:
     try:
         payload = json.loads(body)
-    except json.JSONDecodeError:
+    except (UnicodeDecodeError, json.JSONDecodeError):
         return None
     if not isinstance(payload, dict) or not isinstance(payload.get("error"), dict):
         return None

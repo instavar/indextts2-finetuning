@@ -51,6 +51,9 @@ class RunningServer:
 
 
 class QualificationTests(unittest.TestCase):
+    def test_binary_success_body_has_no_json_error_code(self) -> None:
+        self.assertIsNone(probe.error_code(b"RIFF\xba\x00\x00\x00WAVE"))
+
     def test_live_negative_request_probes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
