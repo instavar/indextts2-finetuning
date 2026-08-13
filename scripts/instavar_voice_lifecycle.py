@@ -10,9 +10,9 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 from pathlib import Path
 from typing import Any
-
 
 REPO_ROOT = Path(__file__).parents[1]
 STAGES = {"preflight", "train", "infer", "evaluate", "package"}
@@ -22,9 +22,12 @@ def _path(name: str, *, directory: bool = False) -> Path:
     value = os.environ.get(name, "").strip()
     if not value:
         raise ValueError(f"{name} is required")
-    path = Path(value).expanduser().resolve()
+    unresolved = Path(value).expanduser()
+    if unresolved.is_symlink():
+        raise FileNotFoundError(f"{name} is a symlink: {unresolved}")
+    path = unresolved.resolve()
     valid = path.is_dir() if directory else path.is_file()
-    if not valid or path.is_symlink():
+    if not valid:
         kind = "directory" if directory else "file"
         raise FileNotFoundError(f"{name} non-symlink {kind} not found: {path}")
     return path
@@ -32,6 +35,82 @@ def _path(name: str, *, directory: bool = False) -> Path:
 
 def _work() -> Path:
     return _path("INSTAVAR_VOICE_WORK_DIR", directory=True)
+
+
+def _persistent_package_root() -> Path:
+    root = _path("PERSISTED_PACKAGE_ROOT", directory=True)
+    protected = {
+        "lifecycle work directory": _work(),
+        "repository checkout": REPO_ROOT.resolve(),
+        "IndexTTS2 upstream checkout": _path("INDEXTTS_UPSTREAM_DIR", directory=True),
+        "prepared dataset tree": _path("PREPARED_DATA_ROOT", directory=True),
+        "model dependency directory": _path("MODEL_DIR", directory=True),
+    }
+    for label, path in protected.items():
+        if root == path or root.is_relative_to(path):
+            raise ValueError(f"PERSISTED_PACKAGE_ROOT must be outside the {label}")
+    return root
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _probe_persistent_package_root(root: Path) -> dict[str, Any]:
+    probe_path: Path | None = None
+    linked_path: Path | None = None
+    linked_created = False
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=root,
+            prefix=".instavar-voice-persistence-probe.",
+            suffix=".partial",
+            delete=False,
+        ) as probe:
+            probe_path = Path(probe.name)
+            probe.write(b"instavar-voice-persistence-probe-v1\n")
+            probe.flush()
+            os.fsync(probe.fileno())
+        linked_path = probe_path.with_suffix(".linked")
+        os.link(probe_path, linked_path)
+        linked_created = True
+        _fsync_directory(root)
+        if linked_path.read_bytes() != probe_path.read_bytes():
+            raise ValueError("persistent package root failed its atomic publication probe")
+        identity = root.stat()
+        return {
+            "writable": True,
+            "atomic_hard_link": True,
+            "device": identity.st_dev,
+            "inode": identity.st_ino,
+        }
+    except OSError as error:
+        raise ValueError(f"PERSISTED_PACKAGE_ROOT cannot publish an atomic package: {error}") from error
+    finally:
+        if linked_path is not None and linked_created:
+            linked_path.unlink(missing_ok=True)
+        if probe_path is not None:
+            probe_path.unlink(missing_ok=True)
+
+
+def _locked_persistent_package_root(preflight: dict[str, Any]) -> Path:
+    root = _persistent_package_root()
+    recorded_root = preflight.get("persistent_package_root")
+    recorded_device = preflight.get("persistence_probe", {}).get("device")
+    recorded_inode = preflight.get("persistence_probe", {}).get("inode")
+    identity = root.stat()
+    if (
+        recorded_root != str(root)
+        or recorded_device != identity.st_dev
+        or recorded_inode != identity.st_ino
+    ):
+        raise ValueError("PERSISTED_PACKAGE_ROOT changed after preflight")
+    return root
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -97,6 +176,60 @@ def _archive(source: Path, destination: Path, *, arcname: str) -> None:
         archive.add(source, arcname=arcname, recursive=True)
 
 
+def _verify_persisted_package(path: Path, expected_sha256: str) -> None:
+    if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
+        raise ValueError(f"persisted package is missing, empty, or unsafe: {path}")
+    actual_sha256 = _sha256(path)
+    if actual_sha256 != expected_sha256:
+        raise ValueError(f"persisted package hash mismatch: expected {expected_sha256}, got {actual_sha256}")
+
+
+def _persist_package(source: Path, root: Path) -> dict[str, Any]:
+    if source.is_symlink() or not source.is_file() or source.stat().st_size == 0:
+        raise ValueError(f"package source is missing, empty, or unsafe: {source}")
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError(f"persistent package root is missing or unsafe: {root}")
+    package_sha256 = _sha256(source)
+    destination = root / f"indextts2-full-sft-package-sha256-{package_sha256}.tar"
+    reused_existing = destination.exists() or destination.is_symlink()
+    if reused_existing:
+        _verify_persisted_package(destination, package_sha256)
+    else:
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                dir=root,
+                prefix=f".{destination.name}.",
+                suffix=".partial",
+                delete=False,
+            ) as target:
+                temporary_path = Path(target.name)
+                with source.open("rb") as package:
+                    shutil.copyfileobj(package, target, length=1024 * 1024)
+                target.flush()
+                os.fsync(target.fileno())
+            _verify_persisted_package(temporary_path, package_sha256)
+            try:
+                os.link(temporary_path, destination)
+            except FileExistsError:
+                reused_existing = True
+            else:
+                _fsync_directory(root)
+            _verify_persisted_package(destination, package_sha256)
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+    return {
+        "schema_version": "1.0.0",
+        "adaptation_mode": "full_sft",
+        "package_sha256": package_sha256,
+        "package_bytes": source.stat().st_size,
+        "persisted_path": str(destination),
+        "reused_existing": reused_existing,
+    }
+
+
 def _verify_sources(upstream: Path) -> dict[str, str]:
     experiment = json.loads(_path("INSTAVAR_VOICE_EXPERIMENT_MANIFEST").read_text(encoding="utf-8"))
     backend = experiment.get("backend", {})
@@ -144,6 +277,8 @@ def _preflight() -> None:
     upstream = _path("INDEXTTS_UPSTREAM_DIR", directory=True)
     sources = _verify_sources(upstream)
     lineage = _verify_dataset_lineage()
+    persistent_package_root = _persistent_package_root()
+    persistence_probe = _probe_persistent_package_root(persistent_package_root)
     splits = {
         "train": _path("RAW_TRAIN_JSONL"),
         "validation": _path("RAW_VALIDATION_JSONL"),
@@ -162,7 +297,16 @@ def _preflight() -> None:
     _safe_filename(os.environ["SELECTED_CHECKPOINT_NAME"])
     _write_json(
         _work() / "preflight" / "preflight.json",
-        {"schema_version": "1.0.0", "status": "passed", "corpus_audit": audit, "generation_rows": len(rows), "sources": sources, "dataset_lineage": lineage},
+        {
+            "schema_version": "1.0.0",
+            "status": "passed",
+            "persistent_package_root": str(persistent_package_root),
+            "persistence_probe": persistence_probe,
+            "corpus_audit": audit,
+            "generation_rows": len(rows),
+            "sources": sources,
+            "dataset_lineage": lineage,
+        },
     )
 
 
@@ -235,6 +379,7 @@ def _evaluate() -> None:
 
 def _package() -> None:
     work = _work()
+    preflight = json.loads((work / "preflight" / "preflight.json").read_text(encoding="utf-8"))
     staging = work / "package" / "staging"
     staging.mkdir(parents=True, exist_ok=False)
     pruned = staging / "gpt-finetuned-pruned.pth"
@@ -258,7 +403,10 @@ def _package() -> None:
         for path in sorted(staging.iterdir()) if path.is_file()
     ]
     _write_json(staging / "package-manifest.json", {"schema_version": "1.0.0", "backend_id": "indextts2-full-sft-pytorch", "files": files, "evidence_boundary": "The pruned checkpoint and evidence completed the lifecycle; perceptual quality and distribution rights remain separate gates."})
-    _archive(staging, work / "package" / "checkpoint-package.tar", arcname="package")
+    package = work / "package" / "checkpoint-package.tar"
+    _archive(staging, package, arcname="package")
+    receipt = _persist_package(package, _locked_persistent_package_root(preflight))
+    _write_json(work / "package" / "persisted-package.json", receipt)
 
 
 def run(stage: str) -> None:

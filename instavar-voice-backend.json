@@ -20,6 +20,7 @@
     { "name": "BASE_CHECKPOINT", "purpose": "Pinned base GPT checkpoint used to initialize full SFT." },
     { "name": "MODEL_DIR", "purpose": "Pinned directory containing the remaining IndexTTS2 inference weights." },
     { "name": "SPEAKER", "purpose": "Authorized reference-speaker audio for held-out synthesis." },
+    { "name": "PERSISTED_PACKAGE_ROOT", "purpose": "Existing external directory for immutable content-addressed lifecycle packages." },
     { "name": "SELECTED_CHECKPOINT_NAME", "purpose": "Single safe checkpoint filename created under the training output." },
     { "name": "GENERATION_PLAN", "purpose": "Frozen Instavar Voice generation plan containing this candidate." },
     { "name": "CANDIDATE_ID", "purpose": "Candidate identifier present in the frozen generation plan." }
@@ -36,7 +37,7 @@
     "train": ["train/selected-checkpoint.pth"],
     "infer": ["infer/candidate.wav"],
     "evaluate": ["evaluate/evaluation-bundle.tar"],
-    "package": ["package/checkpoint-package.tar"]
+    "package": ["package/checkpoint-package.tar", "package/persisted-package.json"]
   },
   "timeout_seconds": {
     "preflight": 300,

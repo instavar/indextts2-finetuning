@@ -90,11 +90,11 @@
           "evidence": [
             {
               "level": "repository_declared",
-              "ref": "README.md#prune-checkpoint-for-deployment",
-              "claim": "The repository documents checkpoint pruning for deployment."
+              "ref": "README.md#executable-instavar-voice-lifecycle",
+              "claim": "The lifecycle prunes the checkpoint, packages evidence, and publishes through a path, device, and inode-bound no-overwrite retention contract."
             }
           ],
-          "boundary": "The pruning path is not a contract-complete immutable promoted package."
+          "boundary": "Dependency-free tests establish content-addressed external retention mechanics, not a real promoted checkpoint package, rights review, remote backup, restore drill, or safe deserialization."
         }
       }
     }
@@ -199,6 +199,7 @@
   },
   "known_gaps": [
     "Revalidate the adaptation path against IndexTTS 2.5 rather than treating family continuity as version equivalence.",
+    "Run a real lifecycle package through managed remote backup and a verified restore drill after completing model, dataset, and speaker-rights review.",
     "The experimental HTTP reference server lacks real-checkpoint, GPU, matched CLI, load, restart, and production-gateway evidence.",
     "The 21-row frozen runtime suite has no human ratings or base-checkpoint comparison."
   ]

@@ -230,6 +230,19 @@ runs the frozen generation plan, prunes the checkpoint, and packages the
 configuration, tokenizer, preflight, smoke output, evaluation, and provenance
 files. The remaining base-model weights stay an external pinned dependency.
 
+Set `PERSISTED_PACKAGE_ROOT` to an existing retention directory outside the
+companion checkout, lifecycle work directory, imported IndexTTS2 checkout,
+prepared dataset tree, and model dependency directory.
+Preflight proves that exact directory can support durable writes and
+no-overwrite atomic hard-link publication, then records its resolved path,
+filesystem device, and directory inode. The package stage rechecks that binding,
+retains the archive as
+`indextts2-full-sft-package-sha256-<sha256>.tar`, and writes
+`package/persisted-package.json` as its receipt. Existing content-addressed
+objects are reused only when their bytes match. This dependency-free contract
+does not prove a real checkpoint package, backup or restore, distribution rights,
+or safe deserialization of the packaged `.pth` file.
+
 Validate the recipe with evaluator merge
 `8feadf7bbda75abe1c305c63e362c41b86451cda`. Use an empty work directory outside
 the repository. `SELECTED_CHECKPOINT_NAME` must be an exact produced filename,
