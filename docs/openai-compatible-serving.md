@@ -151,6 +151,12 @@ requires exact WAV equality and returns nonzero when the bytes differ. Exact
 equality proves only one deterministic matched row under the frozen artifacts
 and settings.
 
+Successful speech responses also return `X-Generation-Seconds` and, on CUDA,
+`X-Peak-Memory-Bytes`. The server measures both inside the serialized synthesis
+boundary after seed reset. The client records server generation time separately
+from end-to-end request time so the evaluator does not mistake network and HTTP
+overhead for model execution.
+
 A real-runtime qualification still requires all of the following:
 
 1. Start from a clean checkout and a content-bound artifact set.

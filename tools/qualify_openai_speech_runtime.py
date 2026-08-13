@@ -139,6 +139,20 @@ def main() -> int:
         raise RuntimeError("speech route did not return Cache-Control: no-store")
     if not speech_headers.get("x-request-id"):
         raise RuntimeError("speech route omitted X-Request-ID")
+    try:
+        server_generation_seconds = float(speech_headers["x-generation-seconds"])
+    except (KeyError, ValueError) as error:
+        raise RuntimeError("speech route omitted valid X-Generation-Seconds") from error
+    if server_generation_seconds <= 0:
+        raise RuntimeError("speech route returned nonpositive X-Generation-Seconds")
+    peak_memory_bytes = None
+    if "x-peak-memory-bytes" in speech_headers:
+        try:
+            peak_memory_bytes = int(speech_headers["x-peak-memory-bytes"])
+        except ValueError as error:
+            raise RuntimeError("speech route returned invalid X-Peak-Memory-Bytes") from error
+        if peak_memory_bytes < 0:
+            raise RuntimeError("speech route returned negative X-Peak-Memory-Bytes")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     audio_path = args.output_dir / f"{args.sample_id}.wav"
@@ -171,7 +185,9 @@ def main() -> int:
         "audio_path": str(audio_path),
         "audio_sha256": sha256_bytes(audio),
         "audio_duration_seconds": duration,
-        "generation_seconds": elapsed,
+        "generation_seconds": server_generation_seconds,
+        "request_seconds": elapsed,
+        **({"peak_memory_bytes": peak_memory_bytes} if peak_memory_bytes is not None else {}),
         "startup_receipt_sha256": args.expected_startup_receipt_sha256,
         "health_request_id": health_headers.get("x-request-id"),
         "ready_request_id": ready_headers.get("x-request-id"),

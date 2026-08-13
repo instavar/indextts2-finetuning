@@ -17,6 +17,7 @@ import re
 import socket
 import tempfile
 import threading
+import time
 import uuid
 import wave
 from collections.abc import Mapping
@@ -71,7 +72,14 @@ def decode_json_body(body: bytes) -> Any:
 class SpeechEngine(Protocol):
     """Minimal engine boundary used by the HTTP service and dependency-free tests."""
 
-    def generate(self, text: str, output_path: Path) -> None: ...
+    def generate(self, text: str, output_path: Path) -> Mapping[str, int | float] | None: ...
+
+
+@dataclass(frozen=True)
+class SynthesisResult:
+    audio: bytes
+    generation_seconds: float
+    peak_memory_bytes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -204,7 +212,7 @@ class SpeechService:
         self.config = config
         self._generation_lock = threading.Lock()
 
-    def synthesize(self, request: SpeechRequest) -> bytes:
+    def synthesize(self, request: SpeechRequest) -> SynthesisResult:
         if not self._generation_lock.acquire(blocking=False):
             raise ApiError(
                 HTTPStatus.TOO_MANY_REQUESTS,
@@ -214,8 +222,29 @@ class SpeechService:
         try:
             with tempfile.TemporaryDirectory(prefix="indextts2-speech-") as temporary:
                 output = Path(temporary) / "response.wav"
-                self.engine.generate(request.text, output)
-                return validate_wav(output, self.config.max_audio_bytes)
+                started = time.perf_counter()
+                metrics = self.engine.generate(request.text, output) or {}
+                elapsed = time.perf_counter() - started
+                generation_seconds = metrics.get("generation_seconds", elapsed)
+                peak_memory_bytes = metrics.get("peak_memory_bytes")
+                if (
+                    isinstance(generation_seconds, bool)
+                    or not isinstance(generation_seconds, (int, float))
+                    or not math.isfinite(float(generation_seconds))
+                    or generation_seconds <= 0
+                ):
+                    raise RuntimeError("engine returned invalid generation timing")
+                if peak_memory_bytes is not None and (
+                    isinstance(peak_memory_bytes, bool)
+                    or not isinstance(peak_memory_bytes, int)
+                    or peak_memory_bytes < 0
+                ):
+                    raise RuntimeError("engine returned invalid peak memory")
+                return SynthesisResult(
+                    audio=validate_wav(output, self.config.max_audio_bytes),
+                    generation_seconds=float(generation_seconds),
+                    peak_memory_bytes=peak_memory_bytes,
+                )
         finally:
             self._generation_lock.release()
 
@@ -403,7 +432,7 @@ class IndexTTS2SpeechEngine:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
 
-    def generate(self, text: str, output_path: Path) -> None:
+    def generate(self, text: str, output_path: Path) -> Mapping[str, int | float]:
         np = importlib.import_module("numpy")
         torch = importlib.import_module("torch")
         random.seed(self.seed)
@@ -411,6 +440,9 @@ class IndexTTS2SpeechEngine:
         torch.manual_seed(self.seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(self.seed)
+            torch.cuda.reset_peak_memory_stats()
+            torch.cuda.synchronize()
+        started = time.perf_counter()
         self._engine.infer(
             spk_audio_prompt=str(self.speaker),
             text=text,
@@ -419,6 +451,16 @@ class IndexTTS2SpeechEngine:
             max_text_tokens_per_segment=self.max_text_tokens,
             **self.generation_kwargs,
         )
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        return {
+            "generation_seconds": time.perf_counter() - started,
+            **(
+                {"peak_memory_bytes": int(torch.cuda.max_memory_allocated())}
+                if torch.cuda.is_available()
+                else {}
+            ),
+        }
 
 
 class SpeechHTTPServer(ThreadingHTTPServer):
@@ -454,13 +496,22 @@ def build_handler(service: SpeechService) -> type[BaseHTTPRequestHandler]:
         def _request_id(self) -> str:
             return f"req_{uuid.uuid4().hex}"
 
-        def _send_headers(self, status: HTTPStatus, content_type: str, length: int, request_id: str) -> None:
+        def _send_headers(
+            self,
+            status: HTTPStatus,
+            content_type: str,
+            length: int,
+            request_id: str,
+            extra_headers: Mapping[str, str] | None = None,
+        ) -> None:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(length))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("X-Request-ID", request_id)
+            for name, value in (extra_headers or {}).items():
+                self.send_header(name, value)
             self.send_header("Connection", "close")
             self.end_headers()
 
@@ -541,9 +592,23 @@ def build_handler(service: SpeechService) -> type[BaseHTTPRequestHandler]:
                     )
                 payload = decode_json_body(self.rfile.read(length))
                 request = parse_speech_request(payload, service.config)
-                audio = service.synthesize(request)
-                self._send_headers(HTTPStatus.OK, "audio/wav", len(audio), request_id)
-                self.wfile.write(audio)
+                synthesis = service.synthesize(request)
+                metric_headers = {
+                    "X-Generation-Seconds": format(synthesis.generation_seconds, ".9f"),
+                    **(
+                        {"X-Peak-Memory-Bytes": str(synthesis.peak_memory_bytes)}
+                        if synthesis.peak_memory_bytes is not None
+                        else {}
+                    ),
+                }
+                self._send_headers(
+                    HTTPStatus.OK,
+                    "audio/wav",
+                    len(synthesis.audio),
+                    request_id,
+                    metric_headers,
+                )
+                self.wfile.write(synthesis.audio)
             except ApiError as error:
                 self._send_error(error, request_id)
             except TimeoutError:

@@ -193,8 +193,9 @@ class SpeechServiceTests(unittest.TestCase):
             engine,
             server.SpeechServerConfig(model_id="fixed-model", voice_id="fixed-voice"),
         )
-        audio = service.synthesize(server.SpeechRequest("hello"))
-        self.assertEqual(audio, wav_bytes())
+        result = service.synthesize(server.SpeechRequest("hello"))
+        self.assertEqual(result.audio, wav_bytes())
+        self.assertGreater(result.generation_seconds, 0)
         self.assertEqual(engine.texts, ["hello"])
         self.assertFalse(engine.output_paths[0].exists())
         self.assertEqual(engine.output_paths[0].name, "response.wav")
@@ -268,6 +269,7 @@ class SpeechHTTPTests(unittest.TestCase):
         self.assertEqual(headers["cache-control"], "no-store")
         self.assertEqual(headers["x-content-type-options"], "nosniff")
         self.assertTrue(headers["x-request-id"].startswith("req_"))
+        self.assertGreater(float(headers["x-generation-seconds"]), 0)
         self.assertEqual(body, wav_bytes())
 
     def test_ready_response_exposes_startup_receipt_binding(self) -> None:
