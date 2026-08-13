@@ -19,11 +19,14 @@ chosen output directory.
 from __future__ import annotations
 
 import argparse
+import datetime
+import importlib.metadata
+import inspect
 import json
 import math
 import os
 import random
-import datetime
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
@@ -31,16 +34,23 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
+from index_resume_contract import (
+    aggregate_file_fingerprint,
+    regular_file_record,
+    resolve_resume_checkpoint,
+    validate_recent_checkpoints,
+    verify_resume_checkpoint,
+    write_epoch_resume_metadata,
+)
+from indextts.gpt.model_v2 import UnifiedVoice
+from indextts.utils.front import TextNormalizer, TextTokenizer
+from omegaconf import OmegaConf
 from torch import nn
+from torch.nn.utils.rnn import pad_sequence
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
-from torch.nn.utils.rnn import pad_sequence
 from transformers import get_cosine_schedule_with_warmup
-from omegaconf import OmegaConf
-
-from indextts.gpt.model_v2 import UnifiedVoice
-from indextts.utils.front import TextNormalizer, TextTokenizer
 
 
 def parse_args() -> argparse.Namespace:
@@ -80,6 +90,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mel-loss-weight", type=float, default=0.8, help="Weight for semantic CE loss.")
     parser.add_argument("--amp", action="store_true", help="Enable CUDA AMP.")
     parser.add_argument("--resume", type=str, default="", help="Path to checkpoint to resume from, or 'auto'.")
+    parser.add_argument(
+        "--trust-resume-state",
+        action="store_true",
+        help="Acknowledge trusted local pickle-backed optimizer state before resume.",
+    )
     parser.add_argument(
         "--use-duration-control",
         action="store_true",
@@ -553,6 +568,8 @@ def save_checkpoint(
     step: int,
     recent_checkpoints: List[str],
     extra: Dict[str, str] | None = None,
+    resume_contract: Dict[str, object] | None = None,
+    completed_epochs: int | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     state = {
@@ -560,6 +577,12 @@ def save_checkpoint(
         "optimizer": optimizer.state_dict(),
         "scheduler": scheduler.state_dict() if scheduler else None,
         "scaler": scaler.state_dict() if scaler else None,
+        "rng_state": {
+            "python": random.getstate(),
+            "numpy": np.random.get_state(),
+            "torch": torch.get_rng_state(),
+            "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+        },
         "epoch": epoch,
         "step": step,
         "recent_checkpoints": recent_checkpoints,
@@ -567,6 +590,31 @@ def save_checkpoint(
     if extra:
         state["extra"] = extra
     torch.save(state, path)
+    if resume_contract is not None:
+        if completed_epochs is None:
+            raise ValueError("completed_epochs is required for resumable checkpoints")
+        write_epoch_resume_metadata(
+            path,
+            resume_contract,
+            completed_epochs=completed_epochs,
+            global_step=step,
+        )
+
+
+def dataset_fingerprint(dataset: JapaneseGPTDataset, *, label: str) -> Dict[str, object]:
+    entries: list[tuple[str, Path]] = []
+    for sample in dataset.samples:
+        if sample is None:
+            raise ValueError(f"{label} contains an unavailable sample before training")
+        entries.extend(
+            (
+                (f"{sample.id}:text_ids", sample.text_ids_path),
+                (f"{sample.id}:codes", sample.codes_path),
+                (f"{sample.id}:condition", sample.condition_path),
+                (f"{sample.id}:emotion", sample.emo_vec_path),
+            )
+        )
+    return aggregate_file_fingerprint(entries, label=label)
 
 
 def evaluate(
@@ -686,31 +734,153 @@ def main() -> None:
     use_amp = args.amp and device.type == "cuda"
     scaler = torch.cuda.amp.GradScaler() if use_amp else None
 
+    model_source = inspect.getsourcefile(UnifiedVoice)
+    if model_source is None:
+        raise RuntimeError("cannot resolve the UnifiedVoice implementation source")
+    resume_contract: Dict[str, object] = {
+        "schema_version": "1.0.0",
+        "adaptation_mode": "full_sft",
+        "output_dir": str(output_dir),
+        "inputs": {
+            "tokenizer": regular_file_record(args.tokenizer, label="tokenizer"),
+            "config": regular_file_record(args.config, label="config"),
+            "base_checkpoint": regular_file_record(
+                args.base_checkpoint, label="base checkpoint"
+            ),
+            "trainer_source": regular_file_record(
+                Path(__file__), label="trainer source"
+            ),
+            "resume_contract_source": regular_file_record(
+                Path(__file__).with_name("index_resume_contract.py"),
+                label="resume contract source",
+            ),
+            "model_source": regular_file_record(
+                Path(model_source), label="UnifiedVoice source"
+            ),
+            "train_manifests": aggregate_file_fingerprint(
+                [
+                    (f"{index}:{spec.language or 'unspecified'}", spec.path)
+                    for index, spec in enumerate(train_specs)
+                ],
+                label="training manifests",
+            ),
+            "validation_manifests": aggregate_file_fingerprint(
+                [
+                    (f"{index}:{spec.language or 'unspecified'}", spec.path)
+                    for index, spec in enumerate(val_specs)
+                ],
+                label="validation manifests",
+            ),
+            "train_features": dataset_fingerprint(
+                train_dataset, label="training features"
+            ),
+            "validation_features": dataset_fingerprint(
+                val_dataset, label="validation features"
+            ),
+        },
+        "training": {
+            "batch_size": args.batch_size,
+            "grad_accumulation": args.grad_accumulation,
+            "epochs": args.epochs,
+            "learning_rate": args.learning_rate,
+            "weight_decay": args.weight_decay,
+            "warmup_steps": args.warmup_steps,
+            "max_steps": args.max_steps,
+            "total_steps": total_steps,
+            "optimizer_steps_per_epoch": optimizer_steps_per_epoch,
+            "val_interval": args.val_interval,
+            "grad_clip": args.grad_clip,
+            "text_loss_weight": args.text_loss_weight,
+            "mel_loss_weight": args.mel_loss_weight,
+            "use_duration_control": args.use_duration_control,
+            "duration_dropout": args.duration_dropout,
+            "seed": args.seed,
+            "num_workers": args.num_workers,
+        },
+        "runtime": {
+            "python": sys.version,
+            "numpy": str(np.__version__),
+            "torch": str(torch.__version__),
+            "torch_cuda": str(torch.version.cuda),
+            "transformers": importlib.metadata.version("transformers"),
+            "omegaconf": importlib.metadata.version("omegaconf"),
+            "device_type": device.type,
+            "cuda_device_count": torch.cuda.device_count() if use_cuda else 0,
+            "cuda_device_name": torch.cuda.get_device_name(device) if use_cuda else None,
+            "amp": use_amp,
+        },
+    }
+
     global_step = 0
     start_epoch = 0
     recent_checkpoints: List[str] = []
     last_saved_step: int | None = None
 
-    resume_path: str | None = None
-    if args.resume:
-        if args.resume == "auto":
-            candidate = output_dir / "latest.pth"
-            if candidate.exists():
-                resume_path = str(candidate)
-        else:
-            resume_path = args.resume
+    resume_path = resolve_resume_checkpoint(args.resume, output_dir)
     if resume_path:
-        checkpoint = torch.load(resume_path, map_location=device)
+        resume_metadata = verify_resume_checkpoint(
+            resume_path,
+            resume_contract,
+            trust_resume_state=args.trust_resume_state,
+            target_epochs=args.epochs,
+        )
+        checkpoint = torch.load(resume_path, map_location=device, weights_only=False)
+        for required_key in (
+            "model",
+            "optimizer",
+            "scheduler",
+            "rng_state",
+            "epoch",
+            "step",
+        ):
+            if required_key not in checkpoint:
+                raise ValueError(f"resume checkpoint is missing {required_key}")
+        checkpoint_epoch = checkpoint["epoch"]
+        checkpoint_step = checkpoint["step"]
+        if (
+            not isinstance(checkpoint_epoch, int)
+            or isinstance(checkpoint_epoch, bool)
+            or checkpoint_epoch < 0
+        ):
+            raise ValueError("resume checkpoint epoch must be a nonnegative integer")
+        if (
+            not isinstance(checkpoint_step, int)
+            or isinstance(checkpoint_step, bool)
+            or checkpoint_step < 1
+        ):
+            raise ValueError("resume checkpoint step must be a positive integer")
+        if checkpoint_epoch + 1 != resume_metadata["completed_epochs"]:
+            raise ValueError("resume checkpoint epoch does not match its metadata")
+        if checkpoint_step != resume_metadata["global_step"]:
+            raise ValueError("resume checkpoint step does not match its metadata")
+        if use_amp and not checkpoint.get("scaler"):
+            raise ValueError("AMP resume checkpoint is missing scaler state")
         model.load_state_dict(checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
-        if checkpoint.get("scheduler"):
-            scheduler.load_state_dict(checkpoint["scheduler"])
+        scheduler.load_state_dict(checkpoint["scheduler"])
         if scaler and checkpoint.get("scaler"):
             scaler.load_state_dict(checkpoint["scaler"])
-        start_epoch = checkpoint.get("epoch", 0)
-        global_step = checkpoint.get("step", 0)
-        recent_checkpoints = checkpoint.get("recent_checkpoints", [])
-        last_saved_step = checkpoint.get("step")
+        rng_state = checkpoint["rng_state"]
+        if not isinstance(rng_state, dict) or not all(
+            name in rng_state for name in ("python", "numpy", "torch", "cuda")
+        ):
+            raise ValueError("resume checkpoint RNG state is incomplete")
+        random.setstate(rng_state["python"])
+        np.random.set_state(rng_state["numpy"])
+        torch.set_rng_state(rng_state["torch"].cpu())
+        if use_cuda:
+            cuda_rng_state = rng_state["cuda"]
+            if not isinstance(cuda_rng_state, list) or not cuda_rng_state:
+                raise ValueError("CUDA resume checkpoint RNG state is incomplete")
+            torch.cuda.set_rng_state_all(
+                [state.cpu() for state in cuda_rng_state]
+            )
+        start_epoch = resume_metadata["completed_epochs"]
+        global_step = resume_metadata["global_step"]
+        recent_checkpoints = validate_recent_checkpoints(
+            checkpoint.get("recent_checkpoints", []), output_dir
+        )
+        last_saved_step = global_step
         print(f"[Info] Resumed from {resume_path} at epoch {start_epoch}, step {global_step}.")
 
     model.train()
@@ -843,6 +1013,8 @@ def main() -> None:
                 global_step,
                 recent_checkpoints,
                 extra=checkpoint_extra("epoch"),
+                resume_contract=resume_contract,
+                completed_epochs=epoch + 1,
             )
             torch.save(
                 {

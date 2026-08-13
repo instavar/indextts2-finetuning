@@ -6,6 +6,17 @@ The backend verifies clean companion and imported upstream revisions, audits raw
 
 `PERSISTED_PACKAGE_ROOT` must already exist outside the companion checkout, lifecycle work directory, imported IndexTTS2 checkout, prepared dataset tree, and model dependency directory. Preflight verifies durable writes and no-overwrite atomic hard-link publication, then locks the resolved path, filesystem device, and directory inode for the later package stage. Packaging reuses only a byte-identical object, rejects a conflicting or symbolic destination, and leaves the stage-local archive available for inspection. This establishes repository-declared retention mechanics, not a completed model or dataset rights review, remote backup, restore drill, real promoted checkpoint package, or defense against every adversarial filesystem race. A package hash provides integrity evidence and does not make the packaged `.pth` checkpoint safe to deserialize.
 
+The underlying full-SFT trainer treats restart state as a separate trusted
+boundary. Only a new epoch checkpoint with a matching content-bound sidecar can
+resume. The sidecar binds checkpoint bytes, manifests and referenced features,
+model and trainer sources, optimization settings, output location, runtime
+packages, CUDA device identity, and AMP mode. Loading also restores Python,
+NumPy, PyTorch, and CUDA RNG state. The user must explicitly acknowledge
+pickle-backed optimizer state. Legacy, step-boundary, mutated, symlinked,
+cross-contract, completed-run, and untrusted checkpoints fail closed. These are
+dependency-free contract results, not evidence of a real interrupted GPU run,
+numerical equivalence, cross-version portability, or mid-epoch continuation.
+
 Capability schema 1.2 records each full-SFT lifecycle stage separately and names the exact blocker for the matched base-checkpoint comparison. A repository-level `supported` label no longer implies corpus audit, evaluation, or packaging completeness.
 
 A capability marked `supported` means the referenced repository evidence reaches the stated engineering boundary. It does not prove perceptual quality, accent fidelity, commercial suitability, or equivalence across untested runtimes. `unverified_for_adapter` keeps an upstream or community runtime visible without implying that this repository's adapted artifact works there.

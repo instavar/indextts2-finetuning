@@ -40,4 +40,5 @@ jobs:
           tests/lifecycle_backend_test.py
           tests/evaluation_suite_test.py
           tests/openai_speech_server_test.py
+          tests/resume_contract_test.py
           -v

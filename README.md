@@ -14,7 +14,7 @@ We used this pipeline to fine-tune IndexTTS2 (full SFT — all weights updated, 
 IndexTTS2 is the most reproducible full-SFT TTS model we tested — it converges predictably and retains accent characteristics well. But as of March 2026, the official repo is inference-only. We wrote the fine-tuning pipeline from scratch during our IMDA NSC benchmark runs (January 2026) and have been using it in production since.
 
 This repo contains:
-- `trainers/train_gpt_v2.py` — full GPT fine-tuning trainer (909 lines)
+- `trainers/train_gpt_v2.py` - full GPT fine-tuning trainer
 - `tools/` — complete data preprocessing pipeline (6 scripts)
 - `tools/openai_speech_server.py` - experimental OpenAI-compatible HTTP speech server
 - `inference_script.py` — CLI inference wrapper
@@ -113,15 +113,35 @@ python trainers/train_gpt_v2.py \
   --grad-clip 1.0 \
   --text-loss-weight 0.2 \
   --mel-loss-weight 0.8 \
-  --amp \
-  --resume auto
+  --amp
+```
+
+Resume is intentionally opt-in because the training checkpoint contains
+pickle-backed optimizer, scheduler, AMP, and RNG state. `auto` selects only the
+latest epoch-boundary checkpoint carrying a matching content-bound sidecar;
+legacy, step-boundary, symlinked, mutated, cross-configuration, cross-runtime,
+or completed-run state fails closed. The contract binds the tokenizer, model
+configuration, base checkpoint, trainer and model sources, all referenced train
+and validation manifests and features, optimization settings, output directory,
+Python and package versions, CUDA runtime and device identity, and AMP mode. It
+does not support exact mid-epoch or cross-version continuation. To continue an
+interrupted run whose original target was ten epochs:
+
+```bash
+python trainers/train_gpt_v2.py \
+  <the same arguments used for the original run> \
+  --resume auto \
+  --trust-resume-state
 ```
 
 Or use the provided script:
 
 ```bash
-bash scripts/train.sh
+RESUME=auto TRUST_RESUME_STATE=1 bash scripts/train.sh
 ```
+
+Omit both resume variables for a new run. Set the trust flag only for local
+state whose origin you have verified.
 
 ### 5. Select the best checkpoint
 
@@ -292,7 +312,7 @@ Based on our IMDA NSC FEMALE_01 runs (RTX 3090 Ti, 24 GB):
 | Warmup steps | 1000 | Standard cosine schedule |
 | Val interval | 2000 | Frequent enough to catch the best checkpoint |
 | AMP | Enabled | Halves VRAM usage; no quality loss observed |
-| Resume | auto | Resumes from latest checkpoint if training crashes |
+| Resume | guarded epoch boundary | Explicit trust plus exact contract and checkpoint verification |
 
 ## Data preprocessing pipeline
 
@@ -353,7 +373,8 @@ The prompt/target pairing strategy follows the IndexTTS2 paper: different uttera
 ```
 indextts2-finetuning/
   trainers/
-    train_gpt_v2.py          # Full GPT fine-tuning trainer (909 lines)
+    train_gpt_v2.py          # Full GPT fine-tuning trainer
+    index_resume_contract.py # Trusted epoch-resume metadata and verification
   tools/
     preprocess_data.py        # Generic data preprocessing pipeline
     preprocess_multiproc.py   # Multi-worker parallel preprocessing
@@ -366,6 +387,7 @@ indextts2-finetuning/
   tests/
     padding_test.py           # Padding correctness tests
     regression_test.py        # Output regression tests
+    resume_contract_test.py   # Dependency-free guarded-resume tests
   inference_script.py         # CLI inference wrapper
   README.md
   CHANGELOG.md

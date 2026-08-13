@@ -4,6 +4,15 @@ set -euo pipefail
 TRAIN_MANIFEST="${TRAIN_MANIFEST:-processed_data_2/gpt_pairs_train.jsonl}"
 VAL_MANIFEST="${VAL_MANIFEST:-processed_data_2/gpt_pairs_val.jsonl}"
 PYTHON="${PYTHON:-python3}"
+resume_args=()
+
+if [[ -n "${RESUME:-}" ]]; then
+  if [[ "${TRUST_RESUME_STATE:-0}" != "1" ]]; then
+    echo "Set TRUST_RESUME_STATE=1 only for a trusted local epoch checkpoint" >&2
+    exit 2
+  fi
+  resume_args+=(--resume "${RESUME}" --trust-resume-state)
+fi
 
 if [[ "${AUDIT_CORPUS:-0}" == "1" ]]; then
   : "${RAW_TRAIN_JSONL:?set RAW_TRAIN_JSONL when AUDIT_CORPUS=1}"
@@ -40,5 +49,5 @@ uv run python trainers/train_gpt_v2.py \
   --text-loss-weight "${TEXT_LOSS_WEIGHT:-0.2}" \
   --mel-loss-weight "${MEL_LOSS_WEIGHT:-0.8}" \
   --amp \
-  --resume "${RESUME:-auto}" \
+  "${resume_args[@]}" \
   "$@"

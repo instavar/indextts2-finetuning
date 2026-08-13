@@ -48,9 +48,14 @@
               "level": "validated",
               "ref": "README.md#select-the-best-checkpoint",
               "claim": "Multiple GPT checkpoints were preserved and step 14000 was selected."
+            },
+            {
+              "level": "repository_declared",
+              "ref": "README.md#4-train",
+              "claim": "New epoch checkpoints carry a content-bound sidecar for explicit trusted same-contract resume."
             }
           ],
-          "boundary": "Checkpoint selection evidence remains separate from deployment packaging."
+          "boundary": "Resume has dependency-free contract coverage only. Legacy, mid-epoch, distributed, cross-version, and untrusted state remain unsupported, and checkpoint selection remains separate from deployment packaging."
         },
         "fresh_process_reload": {
           "status": "validated",
@@ -199,6 +204,7 @@
   },
   "known_gaps": [
     "Revalidate the adaptation path against IndexTTS 2.5 rather than treating family continuity as version equivalence.",
+    "Run an interrupted real GPU full-SFT job through the guarded epoch-boundary resume path; dependency-free checks do not establish numerical continuation.",
     "Run a real lifecycle package through managed remote backup and a verified restore drill after completing model, dataset, and speaker-rights review.",
     "The experimental HTTP reference server lacks real-checkpoint, GPU, matched CLI, load, restart, and production-gateway evidence.",
     "The 21-row frozen runtime suite has no human ratings or base-checkpoint comparison."
