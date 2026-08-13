@@ -151,6 +151,9 @@ class QualificationTests(unittest.TestCase):
             http_observation = json.loads(
                 (output_dir / "http-generation-observation.json").read_text(encoding="utf-8")
             )
+            self.assertNotIn("sample_rate_hz", http_observation)
+            self.assertNotIn("channels", http_observation)
+            self.assertNotIn("sample_width_bytes", http_observation)
             cli_observations = root / "cli.json"
             cli_observations.write_text(
                 json.dumps([{**http_observation, "runtime": "indextts2_pytorch_cuda_full_sft"}]),
