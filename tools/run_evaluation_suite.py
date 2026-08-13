@@ -15,9 +15,9 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 import torch
+from evaluation_contract import configure_checkpoint
 from indextts.infer_v2 import IndexTTS2
 from omegaconf import OmegaConf
-
 
 IDENTIFIER_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
@@ -26,6 +26,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--model-dir", type=Path, required=True)
+    parser.add_argument(
+        "--inference-mode",
+        choices=("full-sft", "base"),
+        default="full-sft",
+        help="load one explicit full-SFT GPT checkpoint or the unchanged base gpt.pth",
+    )
     parser.add_argument("--gpt-checkpoint", type=Path)
     parser.add_argument("--tokenizer", type=Path)
     parser.add_argument("--speaker", required=True)
@@ -111,8 +117,7 @@ def main() -> int:
     artifact_fields = runtime_artifact_fields(args)
     rows = read_rows(args.generation_plan, args.candidate_id)
     config = OmegaConf.load(args.config)
-    if args.gpt_checkpoint:
-        config.gpt_checkpoint = str(args.gpt_checkpoint.resolve())
+    artifact_mode = configure_checkpoint(args, config)
     if args.tokenizer:
         config.dataset.bpe_model = str(args.tokenizer.resolve())
 
@@ -152,8 +157,9 @@ def main() -> int:
                 "seed": row["seed"],
                 "requested_text": row["text"],
                 "valid": False,
-                "runtime": "indextts2_pytorch_cuda_checkpoint",
+                "runtime": f"indextts2_pytorch_{device_family}_{artifact_mode}",
                 **artifact_fields,
+                "artifact_mode": artifact_mode,
                 "instruction_applied": False,
             }
             try:

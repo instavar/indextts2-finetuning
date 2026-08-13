@@ -128,6 +128,11 @@
           "level": "validated",
           "ref": "README.md#inference",
           "claim": "The inference wrapper loads an explicit fine-tuned GPT checkpoint and generates audio."
+        },
+        {
+          "level": "repository_declared",
+          "ref": "README.md#frozen-multi-prompt-evaluation",
+          "claim": "The suite runner separates unchanged-base and explicit full-SFT modes and fails closed on ambiguous checkpoint selection."
         }
       ]
     },

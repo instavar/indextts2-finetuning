@@ -278,6 +278,7 @@ IndexTTS2 row in an Instavar Voice generation plan:
 python tools/run_evaluation_suite.py \
   --config checkpoints/config_finetune.yaml \
   --model-dir checkpoints \
+  --inference-mode full-sft \
   --gpt-checkpoint checkpoints/model_step14000.pth \
   --speaker assets/female01_prompt.wav \
   --generation-plan evaluation/generation-plan.json \
@@ -286,6 +287,29 @@ python tools/run_evaluation_suite.py \
   --output-dir evaluation/index-step14000 \
   --device cuda:0
 ```
+
+For a matched unchanged-base control, use the same plan, prompt audio, seeds,
+runtime settings, and base model directory, then omit the checkpoint override:
+
+```bash
+python tools/run_evaluation_suite.py \
+  --config checkpoints/config.yaml \
+  --model-dir checkpoints \
+  --inference-mode base \
+  --speaker assets/female01_prompt.wav \
+  --generation-plan evaluation/generation-plan.json \
+  --candidate-id index-base \
+  --runtime-id pytorch \
+  --output-dir evaluation/index-base \
+  --device cuda:0
+```
+
+Base mode rejects `--gpt-checkpoint` and requires `config.gpt_checkpoint` to
+resolve to `<model-dir>/gpt.pth`. Full-SFT mode requires an explicit checkpoint.
+Each observation records `artifact_mode` and a device-aware runtime label so a
+missing override cannot silently turn an adapted candidate into the base
+control, or vice versa. This artifact binding does not make unmatched prompts,
+references, settings, extractors, or post-generation assignments comparable.
 
 The runner freezes Python, NumPy, and PyTorch seeds for every planned sample and
 records failed generations instead of dropping them. A complete matrix is
