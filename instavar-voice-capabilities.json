@@ -179,20 +179,26 @@
       "precision": "runtime configurable",
       "batching": false,
       "conformance": {
-        "status": "not_run",
+        "status": "smoke_tested",
         "clean_checkout": true,
-        "fresh_process": false,
-        "prompt_count": 0,
-        "seed_count": 0
+        "fresh_process": true,
+        "prompt_count": 3,
+        "seed_count": 3,
+        "report": "reports/openai-speech-http-runtime-2026-08-14.md"
       },
       "evidence": [
         {
           "level": "repository_declared",
           "ref": "docs/openai-compatible-serving.md",
           "claim": "A fixed-artifact OpenAI-compatible speech subset and dependency-free live HTTP contract tests are implemented."
+        },
+        {
+          "level": "smoke_tested",
+          "ref": "reports/openai-speech-http-runtime-2026-08-14.md",
+          "claim": "The selected step-14000 checkpoint passed nine frozen CUDA HTTP rows, exact matched CLI parity, restart reproducibility, complete objective-metric coverage, and bounded malformed plus overlapping-request probes."
         }
       ],
-      "notes": "The HTTP contract is tested with a fake engine. Real checkpoint loading, CUDA generation, quality, load behavior, and production readiness have not been run."
+      "notes": "One fixed-artifact local CUDA bridge is smoke-tested. Sustained load, disconnects, timeouts, OOM recovery, multi-worker behavior, a real gateway, blind listening, and production readiness remain unvalidated."
     }
   ],
   "evaluation": {
@@ -244,7 +250,7 @@
     "Revalidate the adaptation path against IndexTTS 2.5 rather than treating family continuity as version equivalence.",
     "Run an interrupted real GPU full-SFT job through the guarded epoch-boundary resume path; dependency-free checks do not establish numerical continuation.",
     "Run a real lifecycle package through managed remote backup and a verified restore drill after completing model, dataset, and speaker-rights review.",
-    "The experimental HTTP reference server lacks real-checkpoint, GPU, matched CLI, load, restart, and production-gateway evidence.",
+    "The experimental HTTP reference server has one real-checkpoint CUDA smoke with exact CLI parity and restart evidence, but lacks sustained load, disconnect, timeout, OOM recovery, multi-worker, real-gateway, and blind-listening evidence.",
     "The exact base versus step-14000 comparison covers one long-form prompt and seed; multi-seed coverage and human ratings remain incomplete."
   ]
 }

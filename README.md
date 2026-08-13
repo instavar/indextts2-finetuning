@@ -438,6 +438,11 @@ protocol lives under [`evaluation/preregistration/`](evaluation/preregistration/
 These tools make a real runtime result auditable, but their presence alone does
 not promote the HTTP runtime beyond `experimental`; see
 [`docs/openai-compatible-serving.md`](docs/openai-compatible-serving.md).
+The first real CUDA qualification passed all nine planned HTTP rows, ten exact
+CLI parity checks including restart, complete objective-metric coverage, and
+the frozen malformed plus overlapping-request probes. The evidence and limits
+are recorded in
+[`reports/openai-speech-http-runtime-2026-08-14.md`](reports/openai-speech-http-runtime-2026-08-14.md).
 
 The lifecycle preserves invalid generations as explicit rows, then uses
 evaluator revision `8feadf7bbda75abe1c305c63e362c41b86451cda` to bind timing,
