@@ -26,6 +26,7 @@ import json
 import math
 import os
 import random
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +38,7 @@ import torch.nn.functional as F
 from index_resume_contract import (
     aggregate_file_fingerprint,
     regular_file_record,
+    resume_artifacts_path,
     resolve_resume_checkpoint,
     validate_recent_checkpoints,
     verify_resume_checkpoint,
@@ -558,6 +560,68 @@ def compute_losses(
     return text_loss, mel_loss, metrics
 
 
+def save_resume_artifacts(
+    path: Path,
+    state: Dict[str, object],
+    *,
+    completed_epochs: int,
+) -> Path:
+    target = resume_artifacts_path(path)
+    if target.exists() or target.is_symlink():
+        raise ValueError(f"refusing to overwrite resume artifacts: {target}")
+    partial = target.with_name(f".{target.name}.{os.getpid()}.partial")
+    if partial.exists() or partial.is_symlink():
+        raise ValueError(f"resume artifact partial already exists: {partial}")
+    partial.mkdir(mode=0o700)
+    published = False
+    try:
+        if state.get("scheduler") is None:
+            raise ValueError("resume artifacts require scheduler state")
+        state_completed_epochs = int(state["epoch"]) + 1
+        if state_completed_epochs != completed_epochs:
+            raise ValueError(
+                "resume artifact epoch does not match checkpoint metadata progress"
+            )
+        serialized = {
+            "model-state.pt": state["model"],
+            "optimizer-state.pt": state["optimizer"],
+            "scheduler-state.pt": state["scheduler"],
+            "rng-state.pt": state["rng_state"],
+        }
+        for name, value in serialized.items():
+            output = partial / name
+            torch.save(value, output)
+            with output.open("rb") as handle:
+                os.fsync(handle.fileno())
+        trainer_state = {
+            "schema_version": "1.0.0",
+            "completed_epochs": completed_epochs,
+            "global_step": int(state["step"]),
+        }
+        trainer_path = partial / "trainer-state.json"
+        with trainer_path.open("x", encoding="utf-8") as handle:
+            json.dump(trainer_state, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        directory = os.open(partial, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+        os.rename(partial, target)
+        published = True
+        parent = os.open(target.parent, os.O_RDONLY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+    finally:
+        if not published and partial.exists() and not partial.is_symlink():
+            shutil.rmtree(partial)
+    return target
+
+
 def save_checkpoint(
     path: Path,
     model: nn.Module,
@@ -593,11 +657,17 @@ def save_checkpoint(
     if resume_contract is not None:
         if completed_epochs is None:
             raise ValueError("completed_epochs is required for resumable checkpoints")
+        artifacts = save_resume_artifacts(
+            path,
+            state,
+            completed_epochs=completed_epochs,
+        )
         write_epoch_resume_metadata(
             path,
             resume_contract,
             completed_epochs=completed_epochs,
             global_step=step,
+            resume_artifacts=artifacts,
         )
 
 

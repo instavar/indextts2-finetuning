@@ -53,6 +53,11 @@
               "level": "repository_declared",
               "ref": "README.md#4-train",
               "claim": "New epoch checkpoints carry a content-bound sidecar for explicit trusted same-contract resume."
+            },
+            {
+              "level": "repository_declared",
+              "ref": "reports/resume-evaluator-045-instrumentation-2026-08-14.md",
+              "claim": "Future epoch checkpoints expose separate model, optimizer, scheduler, trainer, and RNG role files under schema 1.1 metadata."
             }
           ],
           "boundary": "Resume has dependency-free contract coverage only. Legacy, mid-epoch, distributed, cross-version, and untrusted state remain unsupported, and checkpoint selection remains separate from deployment packaging."
@@ -249,6 +254,7 @@
   "known_gaps": [
     "Revalidate the adaptation path against IndexTTS 2.5 rather than treating family continuity as version equivalence.",
     "Run an interrupted real GPU full-SFT job through the guarded epoch-boundary resume path; dependency-free checks do not establish numerical continuation.",
+    "Existing full-SFT evidence predates evaluator 0.45 live-conditioning receipts and decomposed resume artifacts; a fresh paired run is required for the stronger byte-exact claim tier.",
     "Run a real lifecycle package through managed remote backup and a verified restore drill after completing model, dataset, and speaker-rights review.",
     "The experimental HTTP reference server has one real-checkpoint CUDA smoke with exact CLI parity and restart evidence, but lacks sustained load, disconnect, timeout, OOM recovery, multi-worker, real-gateway, and blind-listening evidence.",
     "The exact base versus step-14000 comparison covers one long-form prompt and seed; multi-seed coverage and human ratings remain incomplete."

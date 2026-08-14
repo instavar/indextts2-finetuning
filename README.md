@@ -143,6 +143,19 @@ RESUME=auto TRUST_RESUME_STATE=1 bash scripts/train.sh
 Omit both resume variables for a new run. Set the trust flag only for local
 state whose origin you have verified.
 
+Future epoch-boundary checkpoints also publish a metadata-bound
+`*.resume-artifacts` directory with separate model, optimizer, scheduler,
+trainer, and RNG files. This exposes the five independent roles required by
+Instavar Voice evaluator 0.45 while the original combined `.pth` remains the
+loader source. Schema 1.0 combined-only checkpoints remain resumable, but only
+schema 1.1 checkpoints can use `evaluator_full_sft_artifact_paths(...)`.
+
+The decomposed model state increases storage for each resumable epoch
+checkpoint. It is intentionally limited to epoch boundaries and must be planned
+into the retention budget. Existing full-SFT evidence predates the new files and
+schema 1.1 live-conditioning receipts, so it is not upgraded. See
+[`reports/resume-evaluator-045-instrumentation-2026-08-14.md`](reports/resume-evaluator-045-instrumentation-2026-08-14.md).
+
 ### 5. Select the best checkpoint
 
 **Do not use `latest.pth`.** It points to the final training step, which is rarely the best.
@@ -429,7 +442,7 @@ Apache-2.0
 
 ## Instavar Voice conformance
 
-[`instavar-voice-capabilities.json`](instavar-voice-capabilities.json) declares full SFT and explicit-checkpoint PyTorch inference as the supported path. It does not relabel full SFT as LoRA and does not imply that the private production API is part of this repository. CI validates the manifest against the pinned public [Instavar Voice evaluation contract](https://github.com/instavar/instavar-voice-evaluation). New lifecycle runs should use evaluator commit `8c0fb66a592c73f801a289aabd242e03a6849115` or a deliberately reviewed successor so POSIX stage timeouts clean the complete process group. This does not retroactively upgrade earlier run evidence.
+[`instavar-voice-capabilities.json`](instavar-voice-capabilities.json) declares full SFT and explicit-checkpoint PyTorch inference as the supported path. It does not relabel full SFT as LoRA and does not imply that the private production API is part of this repository. CI validates the manifest against the pinned public [Instavar Voice evaluation contract](https://github.com/instavar/instavar-voice-evaluation). New lifecycle and resume-evidence runs should use evaluator commit `29c38cfd86b889abc8b79df063c817dd8f684903` or a deliberately reviewed successor so POSIX stage timeouts clean the complete process group and schema 1.1 receipts bind live conditioning artifacts. This does not retroactively upgrade earlier run evidence.
 
 The experimental OpenAI-compatible subset now has content-bound startup
 receipts, an exact frozen-row HTTP client, a CLI parity validator, and malformed

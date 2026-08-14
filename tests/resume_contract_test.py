@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
 from trainers.index_resume_contract import (
     aggregate_file_fingerprint,
+    evaluator_full_sft_artifact_paths,
+    resume_artifacts_path,
     resolve_resume_checkpoint,
     validate_recent_checkpoints,
     verify_resume_checkpoint,
@@ -158,6 +162,109 @@ class ResumeContractTests(unittest.TestCase):
         self.assertIn("weights_only=False", trainer)
         self.assertIn("TRUST_RESUME_STATE:-0", launcher)
         self.assertNotIn("RESUME:-auto", launcher)
+        self.assertIn("completed_epochs=completed_epochs", trainer)
+        self.assertIn("state_completed_epochs != completed_epochs", trainer)
+        self.assertIn("resume_artifacts=artifacts", trainer)
+
+    def test_schema_11_evaluator_artifacts_are_live_bound(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            checkpoint = root / "model_epoch02_step2000.pth"
+            checkpoint.write_bytes(b"combined-loader-state")
+            artifacts = resume_artifacts_path(checkpoint)
+            artifacts.mkdir()
+            for name, payload in {
+                "model-state.pt": b"model",
+                "optimizer-state.pt": b"optimizer",
+                "scheduler-state.pt": b"scheduler",
+                "trainer-state.json": b'{"completed_epochs":2}\n',
+                "rng-state.pt": b"rng",
+            }.items():
+                (artifacts / name).write_bytes(payload)
+            contract = {"schema_version": "1.0.0", "training": {"seed": 1234}}
+            metadata_path = write_epoch_resume_metadata(
+                checkpoint,
+                contract,
+                completed_epochs=2,
+                global_step=2000,
+                resume_artifacts=artifacts,
+            )
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            self.assertEqual(metadata["schema_version"], "1.1.0")
+            verified = verify_resume_checkpoint(
+                checkpoint,
+                contract,
+                trust_resume_state=True,
+                target_epochs=10,
+            )
+            self.assertEqual(verified["resume_artifacts"], metadata["resume_artifacts"])
+            self.assertEqual(
+                {
+                    role: path.name
+                    for role, path in evaluator_full_sft_artifact_paths(checkpoint).items()
+                },
+                {
+                    "model_state": "model-state.pt",
+                    "optimizer_state": "optimizer-state.pt",
+                    "scheduler_state": "scheduler-state.pt",
+                    "trainer_state": "trainer-state.json",
+                    "rng_state": "rng-state.pt",
+                },
+            )
+
+            (artifacts / "rng-state.pt").write_bytes(b"changed")
+            with self.assertRaisesRegex(ValueError, "do not match"):
+                verify_resume_checkpoint(
+                    checkpoint,
+                    contract,
+                    trust_resume_state=True,
+                    target_epochs=10,
+                )
+
+    def test_resume_artifact_manifest_rejects_cross_role_hardlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifacts = root / "artifacts"
+            artifacts.mkdir()
+            optimizer = artifacts / "optimizer-state.pt"
+            optimizer.write_bytes(b"shared")
+            os.link(optimizer, artifacts / "scheduler-state.pt")
+            checkpoint = root / "model_epoch01_step1000.pth"
+            checkpoint.write_bytes(b"checkpoint")
+            with self.assertRaisesRegex(ValueError, "hardlink alias"):
+                write_epoch_resume_metadata(
+                    checkpoint,
+                    {"fixture": True},
+                    completed_epochs=1,
+                    global_step=1000,
+                    resume_artifacts=artifacts,
+                )
+
+    def test_evaluator_mapping_rejects_unassigned_state_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            checkpoint = root / "model_epoch01_step1000.pth"
+            checkpoint.write_bytes(b"combined-loader-state")
+            artifacts = resume_artifacts_path(checkpoint)
+            artifacts.mkdir()
+            for name in (
+                "model-state.pt",
+                "optimizer-state.pt",
+                "scheduler-state.pt",
+                "trainer-state.json",
+                "rng-state.pt",
+                "unassigned-state.pt",
+            ):
+                (artifacts / name).write_bytes(name.encode())
+            write_epoch_resume_metadata(
+                checkpoint,
+                {"fixture": True},
+                completed_epochs=1,
+                global_step=1000,
+                resume_artifacts=artifacts,
+            )
+            with self.assertRaisesRegex(ValueError, "exactly the five"):
+                evaluator_full_sft_artifact_paths(checkpoint)
 
 
 if __name__ == "__main__":
