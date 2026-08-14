@@ -172,8 +172,14 @@ class ResumeContractTests(unittest.TestCase):
         )
         self.assertIn('"deterministic": args.deterministic', trainer)
         self.assertIn("canonicalize_tensor_tree(state[\"optimizer\"])", trainer)
+        self.assertIn('"--no-latest"', trainer)
+        self.assertIn('"write_latest": args.write_latest', trainer)
+        self.assertIn("if args.write_latest:", trainer)
+        self.assertIn("os.replace(partial, target)", trainer)
         self.assertIn("DETERMINISTIC:-0", launcher)
         self.assertIn("DETERMINISTIC must equal 0 or 1", launcher)
+        self.assertIn("WRITE_LATEST:-1", launcher)
+        self.assertIn("WRITE_LATEST must equal 0 or 1", launcher)
         self.assertIn("completed_epochs=completed_epochs", trainer)
         self.assertIn("state_completed_epochs != completed_epochs", trainer)
         self.assertIn("resume_artifacts=artifacts", trainer)
@@ -189,6 +195,18 @@ class ResumeContractTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertIn("DETERMINISTIC must equal 0 or 1", result.stderr)
+
+    def test_launcher_rejects_ambiguous_latest_value(self) -> None:
+        result = subprocess.run(
+            ["bash", str(ROOT / "scripts" / "train.sh")],
+            cwd=ROOT,
+            env={**os.environ, "WRITE_LATEST": "false"},
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("WRITE_LATEST must equal 0 or 1", result.stderr)
 
     def test_schema_11_evaluator_artifacts_are_live_bound(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

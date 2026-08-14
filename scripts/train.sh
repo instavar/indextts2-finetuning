@@ -6,12 +6,22 @@ VAL_MANIFEST="${VAL_MANIFEST:-processed_data_2/gpt_pairs_val.jsonl}"
 PYTHON="${PYTHON:-python3}"
 resume_args=()
 deterministic_args=()
+latest_args=()
 
 case "${DETERMINISTIC:-0}" in
   0) ;;
   1) deterministic_args+=(--deterministic) ;;
   *)
     echo "DETERMINISTIC must equal 0 or 1" >&2
+    exit 2
+    ;;
+esac
+
+case "${WRITE_LATEST:-1}" in
+  0) latest_args+=(--no-latest) ;;
+  1) ;;
+  *)
+    echo "WRITE_LATEST must equal 0 or 1" >&2
     exit 2
     ;;
 esac
@@ -60,5 +70,6 @@ uv run python trainers/train_gpt_v2.py \
   --mel-loss-weight "${MEL_LOSS_WEIGHT:-0.8}" \
   --amp \
   "${deterministic_args[@]}" \
+  "${latest_args[@]}" \
   "${resume_args[@]}" \
   "$@"

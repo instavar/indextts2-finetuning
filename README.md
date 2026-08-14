@@ -151,6 +151,13 @@ fail closed if the active model route reaches an unsupported nondeterministic
 kernel. Determinism remains opt-in for ordinary training because this evidence
 mode is stricter than the quality-oriented production path.
 
+Set `WRITE_LATEST=0` for bounded evidence runs that do not need the legacy
+`latest.pth` compatibility copy. The named step and epoch checkpoints remain
+the only guarded resume inputs. When enabled, `latest.pth` is now published by
+an fsynced atomic replacement, so a crash cannot expose a partially rewritten
+compatibility file. Disabling it avoids a second multi-gigabyte combined-state
+write at every checkpoint.
+
 The five-role evidence publisher canonicalizes optimizer tensor leaves onto
 contiguous CPU storage before writing `optimizer-state.pt`. The combined epoch
 checkpoint remains the trusted loader source. This avoids treating equivalent

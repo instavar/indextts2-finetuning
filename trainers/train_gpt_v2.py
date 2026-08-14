@@ -111,6 +111,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--no-latest",
+        dest="write_latest",
+        action="store_false",
+        help=(
+            "Skip the legacy latest.pth compatibility copy. Named checkpoints "
+            "remain the guarded resume source."
+        ),
+    )
+    parser.set_defaults(write_latest=True)
+    parser.add_argument(
         "--duration-dropout",
         type=float,
         default=0.3,
@@ -706,6 +716,47 @@ def save_checkpoint(
         )
 
 
+def save_latest_checkpoint(
+    output_dir: Path,
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    scheduler,
+    scaler,
+    epoch: int,
+    step: int,
+    recent_checkpoints: List[str],
+    manifest_metadata: Dict[str, object],
+) -> None:
+    """Atomically publish the optional legacy latest.pth compatibility copy."""
+    target = output_dir / "latest.pth"
+    partial = output_dir / f".latest.pth.{os.getpid()}.partial"
+    if partial.exists() or partial.is_symlink():
+        raise ValueError(f"latest checkpoint partial already exists: {partial}")
+    state = {
+        "model": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "scheduler": scheduler.state_dict() if scheduler else None,
+        "scaler": scaler.state_dict() if scaler else None,
+        "epoch": epoch,
+        "step": step,
+        "recent_checkpoints": recent_checkpoints,
+        "manifests": manifest_metadata,
+    }
+    try:
+        torch.save(state, partial)
+        with partial.open("rb") as handle:
+            os.fsync(handle.fileno())
+        os.replace(partial, target)
+        parent = os.open(output_dir, os.O_RDONLY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+    finally:
+        if partial.exists() and not partial.is_symlink():
+            partial.unlink()
+
+
 def dataset_fingerprint(dataset: JapaneseGPTDataset, *, label: str) -> Dict[str, object]:
     entries: list[tuple[str, Path]] = []
     for sample in dataset.samples:
@@ -903,6 +954,7 @@ def main() -> None:
             "seed": args.seed,
             "num_workers": args.num_workers,
             "deterministic": args.deterministic,
+            "write_latest": args.write_latest,
         },
         "runtime": {
             "python": sys.version,
@@ -1083,19 +1135,18 @@ def main() -> None:
                         recent_checkpoints,
                         extra=checkpoint_extra("step"),
                     )
-                    torch.save(
-                        {
-                            "model": model.state_dict(),
-                            "optimizer": optimizer.state_dict(),
-                            "scheduler": scheduler.state_dict(),
-                            "scaler": scaler.state_dict() if scaler else None,
-                            "epoch": epoch,
-                            "step": global_step,
-                            "recent_checkpoints": recent_checkpoints,
-                            "manifests": manifest_metadata,
-                        },
-                        output_dir / "latest.pth",
-                    )
+                    if args.write_latest:
+                        save_latest_checkpoint(
+                            output_dir,
+                            model,
+                            optimizer,
+                            scheduler,
+                            scaler,
+                            epoch,
+                            global_step,
+                            recent_checkpoints,
+                            manifest_metadata,
+                        )
                     while len(recent_checkpoints) > max_keep_checkpoints:
                         obsolete = recent_checkpoints.pop(0)
                         try:
@@ -1129,19 +1180,18 @@ def main() -> None:
                 resume_contract=resume_contract,
                 completed_epochs=epoch + 1,
             )
-            torch.save(
-                {
-                    "model": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "scheduler": scheduler.state_dict(),
-                    "scaler": scaler.state_dict() if scaler else None,
-                    "epoch": epoch,
-                    "step": global_step,
-                    "recent_checkpoints": recent_checkpoints,
-                    "manifests": manifest_metadata,
-                },
-                output_dir / "latest.pth",
-            )
+            if args.write_latest:
+                save_latest_checkpoint(
+                    output_dir,
+                    model,
+                    optimizer,
+                    scheduler,
+                    scaler,
+                    epoch,
+                    global_step,
+                    recent_checkpoints,
+                    manifest_metadata,
+                )
             while len(recent_checkpoints) > max_keep_checkpoints:
                 obsolete = recent_checkpoints.pop(0)
                 try:
@@ -1166,19 +1216,18 @@ def main() -> None:
             recent_checkpoints,
             extra=checkpoint_extra("step-final"),
         )
-        torch.save(
-            {
-                "model": model.state_dict(),
-                "optimizer": optimizer.state_dict(),
-                "scheduler": scheduler.state_dict(),
-                "scaler": scaler.state_dict() if scaler else None,
-                "epoch": epoch,
-                "step": global_step,
-                "recent_checkpoints": recent_checkpoints,
-                "manifests": manifest_metadata,
-            },
-            output_dir / "latest.pth",
-        )
+        if args.write_latest:
+            save_latest_checkpoint(
+                output_dir,
+                model,
+                optimizer,
+                scheduler,
+                scaler,
+                epoch,
+                global_step,
+                recent_checkpoints,
+                manifest_metadata,
+            )
         while len(recent_checkpoints) > max_keep_checkpoints:
             obsolete = recent_checkpoints.pop(0)
             try:
