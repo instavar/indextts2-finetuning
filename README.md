@@ -143,6 +143,14 @@ RESUME=auto TRUST_RESUME_STATE=1 bash scripts/train.sh
 Omit both resume variables for a new run. Set the trust flag only for local
 state whose origin you have verified.
 
+For byte-exact resume evidence, set `DETERMINISTIC=1` for both the uninterrupted
+and interrupted-resumed conditions. This enables deterministic PyTorch
+algorithms, sets the CUDA BLAS workspace contract, disables TF32, and binds the
+resulting controls into the resume contract. It can reduce throughput and will
+fail closed if the active model route reaches an unsupported nondeterministic
+kernel. Determinism remains opt-in for ordinary training because this evidence
+mode is stricter than the quality-oriented production path.
+
 Future epoch-boundary checkpoints also publish a metadata-bound
 `*.resume-artifacts` directory with separate model, optimizer, scheduler,
 trainer, and RNG files. This exposes the five independent roles required by

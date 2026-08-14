@@ -103,6 +103,14 @@ def parse_args() -> argparse.Namespace:
         help="Train GPT with duration embeddings derived from target semantic lengths.",
     )
     parser.add_argument(
+        "--deterministic",
+        action="store_true",
+        help=(
+            "Require deterministic PyTorch CUDA algorithms and disable TF32. "
+            "This can reduce throughput and fails closed on unsupported kernels."
+        ),
+    )
+    parser.add_argument(
         "--duration-dropout",
         type=float,
         default=0.3,
@@ -141,6 +149,20 @@ def set_seed(seed: int) -> None:
     np.random.seed(seed)
 
     random.seed(seed)
+
+
+def configure_determinism(enabled: bool) -> None:
+    """Configure the strict CUDA controls required for byte-exact evidence."""
+    if not enabled:
+        return
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    torch.use_deterministic_algorithms(True)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
+    if hasattr(torch, "set_float32_matmul_precision"):
+        torch.set_float32_matmul_precision("highest")
 
 
 @dataclass
@@ -719,6 +741,7 @@ def evaluate(
 
 def main() -> None:
     args = parse_args()
+    configure_determinism(args.deterministic)
     set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -866,6 +889,7 @@ def main() -> None:
             "duration_dropout": args.duration_dropout,
             "seed": args.seed,
             "num_workers": args.num_workers,
+            "deterministic": args.deterministic,
         },
         "runtime": {
             "python": sys.version,
@@ -878,6 +902,12 @@ def main() -> None:
             "cuda_device_count": torch.cuda.device_count() if use_cuda else 0,
             "cuda_device_name": torch.cuda.get_device_name(device) if use_cuda else None,
             "amp": use_amp,
+            "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
+            "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
+            "cudnn_benchmark": torch.backends.cudnn.benchmark,
+            "cudnn_deterministic": torch.backends.cudnn.deterministic,
+            "cuda_matmul_allow_tf32": torch.backends.cuda.matmul.allow_tf32,
+            "cudnn_allow_tf32": torch.backends.cudnn.allow_tf32,
         },
     }
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -162,9 +163,31 @@ class ResumeContractTests(unittest.TestCase):
         self.assertIn("weights_only=False", trainer)
         self.assertIn("TRUST_RESUME_STATE:-0", launcher)
         self.assertNotIn("RESUME:-auto", launcher)
+        self.assertIn('"--deterministic"', trainer)
+        self.assertIn("configure_determinism(args.deterministic)", trainer)
+        self.assertIn("torch.use_deterministic_algorithms(True)", trainer)
+        self.assertIn(
+            'os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")',
+            trainer,
+        )
+        self.assertIn('"deterministic": args.deterministic', trainer)
+        self.assertIn("DETERMINISTIC:-0", launcher)
+        self.assertIn("DETERMINISTIC must equal 0 or 1", launcher)
         self.assertIn("completed_epochs=completed_epochs", trainer)
         self.assertIn("state_completed_epochs != completed_epochs", trainer)
         self.assertIn("resume_artifacts=artifacts", trainer)
+
+    def test_launcher_rejects_ambiguous_deterministic_value(self) -> None:
+        result = subprocess.run(
+            ["bash", str(ROOT / "scripts" / "train.sh")],
+            cwd=ROOT,
+            env={**os.environ, "DETERMINISTIC": "true"},
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("DETERMINISTIC must equal 0 or 1", result.stderr)
 
     def test_schema_11_evaluator_artifacts_are_live_bound(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
