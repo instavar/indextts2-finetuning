@@ -164,7 +164,7 @@ checkpoint remains the trusted loader source. This avoids treating equivalent
 optimizer values as different merely because a resumed optimizer reconstructed
 its internal tensor storages in a different allocation layout.
 
-Future epoch-boundary checkpoints also publish a metadata-bound
+Epoch-boundary checkpoints publish a metadata-bound
 `*.resume-artifacts` directory with separate model, optimizer, scheduler,
 trainer, and RNG files. This exposes the five independent roles required by
 Instavar Voice evaluator 0.45 while the original combined `.pth` remains the
@@ -173,9 +173,13 @@ schema 1.1 checkpoints can use `evaluator_full_sft_artifact_paths(...)`.
 
 The decomposed model state increases storage for each resumable epoch
 checkpoint. It is intentionally limited to epoch boundaries and must be planned
-into the retention budget. Existing full-SFT evidence predates the new files and
-schema 1.1 live-conditioning receipts, so it is not upgraded. See
-[`reports/resume-evaluator-045-instrumentation-2026-08-14.md`](reports/resume-evaluator-045-instrumentation-2026-08-14.md).
+into the retention budget. Earlier full-SFT evidence predates the new files and
+schema 1.1 live-conditioning receipts, so it is not upgraded. A fresh bounded
+RTX 3090 Ti pair reached `byte_exact_live_conditioned_artifact_set` only after
+deterministic execution and canonical optimizer-sidecar publication. See the
+[`instrumentation report`](reports/resume-evaluator-045-instrumentation-2026-08-14.md)
+and the
+[`live GPU report`](reports/resume-live-conditioned-gpu-2026-08-14.md).
 
 ### 5. Select the best checkpoint
 
