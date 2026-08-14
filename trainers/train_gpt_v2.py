@@ -582,6 +582,19 @@ def compute_losses(
     return text_loss, mel_loss, metrics
 
 
+def canonicalize_tensor_tree(value: object) -> object:
+    """Clone tensor leaves to stable CPU storage for evidence serialization."""
+    if torch.is_tensor(value):
+        return value.detach().cpu().contiguous().clone()
+    if isinstance(value, dict):
+        return {key: canonicalize_tensor_tree(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [canonicalize_tensor_tree(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(canonicalize_tensor_tree(item) for item in value)
+    return value
+
+
 def save_resume_artifacts(
     path: Path,
     state: Dict[str, object],
@@ -606,7 +619,7 @@ def save_resume_artifacts(
             )
         serialized = {
             "model-state.pt": state["model"],
-            "optimizer-state.pt": state["optimizer"],
+            "optimizer-state.pt": canonicalize_tensor_tree(state["optimizer"]),
             "scheduler-state.pt": state["scheduler"],
             "rng-state.pt": state["rng_state"],
         }

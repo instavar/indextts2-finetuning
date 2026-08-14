@@ -171,6 +171,7 @@ class ResumeContractTests(unittest.TestCase):
             trainer,
         )
         self.assertIn('"deterministic": args.deterministic', trainer)
+        self.assertIn("canonicalize_tensor_tree(state[\"optimizer\"])", trainer)
         self.assertIn("DETERMINISTIC:-0", launcher)
         self.assertIn("DETERMINISTIC must equal 0 or 1", launcher)
         self.assertIn("completed_epochs=completed_epochs", trainer)

@@ -151,6 +151,12 @@ fail closed if the active model route reaches an unsupported nondeterministic
 kernel. Determinism remains opt-in for ordinary training because this evidence
 mode is stricter than the quality-oriented production path.
 
+The five-role evidence publisher canonicalizes optimizer tensor leaves onto
+contiguous CPU storage before writing `optimizer-state.pt`. The combined epoch
+checkpoint remains the trusted loader source. This avoids treating equivalent
+optimizer values as different merely because a resumed optimizer reconstructed
+its internal tensor storages in a different allocation layout.
+
 Future epoch-boundary checkpoints also publish a metadata-bound
 `*.resume-artifacts` directory with separate model, optimizer, scheduler,
 trainer, and RNG files. This exposes the five independent roles required by
